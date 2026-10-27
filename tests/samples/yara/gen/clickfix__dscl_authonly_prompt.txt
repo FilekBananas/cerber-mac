@@ -1,0 +1,2 @@
+dscl . authonly "$USER" "$PW"  # sample text only
+osascript -e 'display dialog "Enter password" default answer "" hidden answer true'

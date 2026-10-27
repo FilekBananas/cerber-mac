@@ -1,0 +1,1 @@
+{\rtf1\ansi Open Terminal, paste: xattr -cr and drag the Install.command file here.}

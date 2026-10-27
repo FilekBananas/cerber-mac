@@ -1,0 +1,4 @@
+window.stealthProxyControl = { isActive: function(){ return true; } };
+function checkethereumw() {} function runmask() {}
+XMLHttpRequest.prototype.send = function() {}; window.ethereum;
+

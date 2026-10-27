@@ -1,0 +1,2 @@
+# shell start file (synthetic)
+eval "$(echo ZWNobyBoZWxsbyB3b3JsZCBmcm9tIHNhbXBsZSBvbmx5IHRlc3Q= | base64 -d)"

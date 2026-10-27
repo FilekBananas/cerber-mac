@@ -1,0 +1,3 @@
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003"><Target Name="x"><T/></Target>
+<UsingTask TaskName="T" TaskFactory="CodeTaskFactory" AssemblyFile="C:\Windows\Microsoft.Net\Framework\v4.0.30319\Microsoft.Build.Tasks.v4.0.dll"><Task><Code Type="Class" Language="cs"><![CDATA[ using Microsoft.Build.Framework; VirtualAlloc CreateThread Marshal.Copy Convert.FromBase64String ]]></Code></Task></UsingTask></Project>
+

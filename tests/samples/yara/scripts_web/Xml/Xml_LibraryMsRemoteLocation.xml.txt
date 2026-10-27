@@ -1,0 +1,2 @@
+<libraryDescription xmlns="http://schemas.microsoft.com/windows/2009/library"><searchConnectorDescriptionList><searchConnectorDescription><simpleLocation><url>https://example.invalid/share</url></simpleLocation></searchConnectorDescription></searchConnectorDescriptionList></libraryDescription>
+

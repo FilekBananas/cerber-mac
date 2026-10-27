@@ -1,0 +1,20 @@
+# prywatne dane i duże pliki – nigdy do repozytorium
+.venv/
+db/
+models/
+reports/
+quarantine/
+*.gguf
+*.log
+*.app/
+.build/
+
+# śmieci
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.p12

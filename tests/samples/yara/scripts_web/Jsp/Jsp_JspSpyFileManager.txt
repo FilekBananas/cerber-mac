@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+String SHELL_NAME = "x.jsp"; action = SHELL_NAME + "?o=upload"; Runtime.getRuntime();
+

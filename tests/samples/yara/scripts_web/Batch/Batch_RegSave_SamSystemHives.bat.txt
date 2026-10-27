@@ -1,0 +1,3 @@
+reg save HKLM\SAM C:\Windows\Temp\sam.save
+reg save HKLM\SYSTEM C:\Windows\Temp\system.save
+

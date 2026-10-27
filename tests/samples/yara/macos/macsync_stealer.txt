@@ -1,0 +1,5 @@
+# Inert YARA fixture for CERBER_MacOS_MacSync_Signature - text only, not a working sample.
+-- MacSync Stealer (inert strings)
+set outZip to "/tmp/osalogging.zip"
+do shell script "touch /tmp/.kgrab.sh"
+display dialog "Full Disk Access required!" with title "System Preferences"

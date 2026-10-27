@@ -1,0 +1,5 @@
+pkill -f xmrig
+pkill -f minerd
+killall -9 kdevtmpfsi
+pkill -f cryptonight
+

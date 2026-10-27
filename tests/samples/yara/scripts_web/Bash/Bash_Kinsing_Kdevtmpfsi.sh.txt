@@ -1,0 +1,4 @@
+pkill -f kdevtmpfsi
+rm -f /tmp/kdevtmpfsi /var/tmp/kinsing
+kinsing
+

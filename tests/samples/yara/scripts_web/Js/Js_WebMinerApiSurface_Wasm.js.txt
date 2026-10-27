@@ -1,0 +1,2 @@
+getHashesPerSecond getTotalHashes getAcceptedHashes setNumThreads getThrottle hasWASMSupport cryptonight WebAssembly.instantiate
+

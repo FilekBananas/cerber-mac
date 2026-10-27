@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>PayloadType</key><string>Configuration</string>
+<key>PayloadContent</key><array>
+<dict><key>PayloadType</key><string>com.apple.security.root</string><key>PayloadContent</key><data>AAAA</data></dict>
+<dict><key>PayloadType</key><string>com.apple.proxy.http.global</string><key>ProxyServer</key><string>proxy.example.invalid</string><key>ProxyPort</key><integer>8080</integer></dict>
+</array>
+</dict>
+</plist>

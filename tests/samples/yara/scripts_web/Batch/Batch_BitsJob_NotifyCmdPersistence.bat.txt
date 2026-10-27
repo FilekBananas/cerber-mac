@@ -1,0 +1,4 @@
+bitsadmin /create persist
+bitsadmin /SetNotifyCmdLine persist cmd.exe "cmd.exe /c calc.exe"
+bitsadmin /resume persist
+

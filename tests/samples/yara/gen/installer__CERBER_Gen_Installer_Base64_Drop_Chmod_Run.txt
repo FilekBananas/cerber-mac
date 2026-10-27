@@ -1,0 +1,5 @@
+#!/bin/sh
+# synthetic text
+echo "ZWNobyBoaQ==" | base64 -D > /tmp/blob
+chmod +x /tmp/blob
+/tmp/blob >/dev/null 2>&1 &

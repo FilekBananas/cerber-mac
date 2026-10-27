@@ -1,0 +1,7 @@
+cat > /etc/systemd/system/sysmon.service <<EOF
+[Service]
+ExecStart=/tmp/.sysmon --daemon
+Restart=always
+EOF
+systemctl daemon-reload
+

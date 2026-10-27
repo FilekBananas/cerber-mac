@@ -1,0 +1,5 @@
+{
+  "manifest_version": 3,
+  "permissions": ["debugger", "cookies", "webRequestBlocking"],
+  "host_permissions": ["<all_urls>"]
+}

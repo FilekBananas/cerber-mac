@@ -1,0 +1,6 @@
+taskkill /f /im sqlservr.exe
+taskkill /f /im oracle.exe
+taskkill /f /im mysqld.exe
+taskkill /f /im ocssd.exe
+taskkill /f /im excel.exe
+

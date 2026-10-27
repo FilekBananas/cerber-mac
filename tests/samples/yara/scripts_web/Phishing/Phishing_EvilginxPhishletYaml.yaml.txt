@@ -1,0 +1,12 @@
+min_ver: '2.3.0'
+proxy_hosts:
+  - {phish_sub: 'login', orig_sub: 'login', domain: 'example.invalid', session: true, is_landing: true}
+sub_filters:
+  - {triggers_on: 'example.invalid', orig_sub: 'login', domain: 'example.invalid', search: 'x', replace: 'y', mimes: ['text/html']}
+auth_tokens:
+  - domain: '.example.invalid'
+    keys: ['session']
+credentials:
+login:
+  domain: 'example.invalid'
+

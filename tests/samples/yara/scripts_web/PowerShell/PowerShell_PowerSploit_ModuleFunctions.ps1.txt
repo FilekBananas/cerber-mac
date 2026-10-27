@@ -1,0 +1,6 @@
+Invoke-DllInjection
+Invoke-TokenManipulation
+Invoke-NinjaCopy
+Out-Minidump
+Get-VaultCredential
+

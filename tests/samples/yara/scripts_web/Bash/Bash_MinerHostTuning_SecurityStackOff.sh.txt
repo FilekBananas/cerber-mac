@@ -1,0 +1,6 @@
+echo 0 > /proc/sys/kernel/nmi_watchdog
+sysctl -w vm.nr_hugepages=128
+setenforce 0
+ufw disable
+service apparmor stop
+

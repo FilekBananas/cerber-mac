@@ -1,0 +1,6 @@
+{
+  "manifest_version": 3,
+  "chrome_settings_overrides": { "search_provider": { "search_url": "https://search.example.invalid/?q={searchTerms}" } },
+  "host_permissions": ["<all_urls>"],
+  "permissions": ["webRequest", "webRequestBlocking"]
+}

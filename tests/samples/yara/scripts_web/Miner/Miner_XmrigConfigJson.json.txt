@@ -1,0 +1,2 @@
+{"donate-level": 1, "pools": [{"algo": "rx/0", "url": "pool.example.invalid:3333", "user": "WALLET", "pass": "x", "rig-id": "r1"}], "cpu": {"huge-pages": true}}
+

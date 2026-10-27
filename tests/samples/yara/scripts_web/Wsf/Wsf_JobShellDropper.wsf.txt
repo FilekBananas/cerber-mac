@@ -1,0 +1,5 @@
+<job id="x"><script language="JScript">
+var sh = new ActiveXObject("WScript.Shell");
+sh.Run("powershell -nop -c calc");
+</script></job>
+

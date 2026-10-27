@@ -1,0 +1,3 @@
+# SYNTHETIC TEST FIXTURE - not executable
+find "$HOME/Desktop" -name "*.txt" -size -2000k
+find "$HOME/Documents" -name "*.pdf" -o -name "*.kdbx" -o -name "*.docx"

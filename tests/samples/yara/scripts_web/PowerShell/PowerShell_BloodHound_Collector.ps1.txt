@@ -1,0 +1,2 @@
+Invoke-BloodHound -CollectionMethod All -ZipFileName loot.zip
+

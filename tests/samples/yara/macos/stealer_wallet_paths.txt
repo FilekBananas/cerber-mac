@@ -1,0 +1,3 @@
+# Inert YARA fixture for CERBER_MacOS_Stealer_Wallet_Path_Sweep - text only, not a working sample.
+set targets to {"Exodus/exodus.wallet", "Electrum/wallets", "Coinomi/wallets", "Telegram Desktop/tdata"}
+set kc to "Library/Keychains/login.keychain-db"

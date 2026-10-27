@@ -1,0 +1,3 @@
+# Inert YARA fixture for CERBER_MacOS_Atomic_Wallet_Extension_Sweep - text only, not a working sample.
+set walletIDs to {"nkbihfbeogaeaoehlefnkodbefgpgknn", "bfnaelmomeimhlpmgjnjophhpkkoljpa", "aeachknmotapmjnkwhknmclnlgetadgd", "egjidjbpglichdcondbcbdnbeeppieej", "fnjhmkhhmkbjkkabndcnnogagogbneec", "fhbohimaelbohpjbbldcngcnapndodjp"}
+set base to "Library/Application Support/Google/Chrome/Default/Local Extension Settings/"

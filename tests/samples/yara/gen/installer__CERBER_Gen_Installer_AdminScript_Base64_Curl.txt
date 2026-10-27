@@ -1,0 +1,2 @@
+do shell script "echo ZWNobyBoaQ== | base64 -D | sh" with administrator privileges
+-- synthetic text; curl -fsSL https://updates.example.invalid/x

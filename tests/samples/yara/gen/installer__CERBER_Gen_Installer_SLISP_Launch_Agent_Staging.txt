@@ -1,0 +1,4 @@
+#!/bin/sh
+# synthetic text
+mkdir -p "$HOME/Library/Application Support/agent_updater"
+# writes init_agent.plist, agent.sh, version.json (names only)

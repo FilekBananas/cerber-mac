@@ -1,0 +1,5 @@
+c2 https://api.telegram.org/bot123456789:AAExampleTokenPlaceholder012345678901234/x
+hook https://discord.com/api/webhooks/123456789012345678/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+onion http://abcdefghij234567.onion/
+wallet 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
+tunnel https://random.trycloudflare.com/z

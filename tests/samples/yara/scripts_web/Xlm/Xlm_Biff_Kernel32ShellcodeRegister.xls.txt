@@ -1,0 +1,2 @@
+–œ‡°±·Kernel32 VirtualAlloc JJJJJ WriteProcessMemory CreateThread
+

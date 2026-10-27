@@ -1,0 +1,2 @@
+<xm:macrosheet xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><sheetData><row><c><f>EXEC("cmd.exe /c calc")</f></c></row></sheetData></xm:macrosheet>
+

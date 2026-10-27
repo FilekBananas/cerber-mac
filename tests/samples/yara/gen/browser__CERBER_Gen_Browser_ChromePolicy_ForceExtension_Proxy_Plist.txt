@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>ExtensionInstallForcelist</key><array><string>aaaabbbbccccddddeeeeffffgggghhhh;https://updates.example.invalid/u.xml</string></array>
+<key>ProxyMode</key><string>pac_script</string>
+<key>ProxyAutoConfigURLString</key><string>https://pac.example.invalid/p.pac</string>
+</dict></plist>

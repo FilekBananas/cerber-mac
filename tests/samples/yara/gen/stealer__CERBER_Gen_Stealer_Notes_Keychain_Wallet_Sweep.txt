@@ -1,0 +1,5 @@
+# SYNTHETIC TEST FIXTURE - not executable
+group.com.apple.notes/NoteStore.sqlite
+login.keychain-db
+Telegram Desktop/tdata
+Electrum/wallets

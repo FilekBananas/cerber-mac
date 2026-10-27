@@ -1,0 +1,6 @@
+Sub AutoOpen()
+Dim s As String
+s = "powershell -nop -w hidden -c calc"
+Shell s, 0
+End Sub
+

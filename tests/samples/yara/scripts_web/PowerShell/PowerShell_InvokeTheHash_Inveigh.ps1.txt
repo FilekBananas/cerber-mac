@@ -1,0 +1,4 @@
+Invoke-SMBExec -Target example.invalid -Username user -Hash 00
+Invoke-WMIExec -Target example.invalid
+Invoke-TheHash
+

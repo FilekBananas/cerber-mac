@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+r57shell rst.void.ru
+

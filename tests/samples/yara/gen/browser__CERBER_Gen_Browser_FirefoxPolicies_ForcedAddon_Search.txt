@@ -1,0 +1,8 @@
+{
+  "policies": {
+    "ExtensionSettings": {
+      "addon@example.invalid": { "install_url": "https://addons.example.invalid/a.xpi", "installation_mode": "force_installed" }
+    },
+    "Homepage": { "URL": "https://home.example.invalid/" }
+  }
+}

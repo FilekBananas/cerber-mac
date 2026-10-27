@@ -1,0 +1,5 @@
+# Inert YARA fixture for CERBER_MacOS_Banshee_Stealer (log strings only)
+No debugging, VM, or Russian language detected.
+/tmp/tempAppleScript
+/Users/user/password-entered
+Data posted successfully

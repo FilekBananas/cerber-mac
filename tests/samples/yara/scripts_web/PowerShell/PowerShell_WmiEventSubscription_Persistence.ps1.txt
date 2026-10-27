@@ -1,0 +1,4 @@
+$f = Set-WmiInstance -Namespace root\subscription -Class __EventFilter -Arguments @{Name='x'}
+$c = Set-WmiInstance -Class CommandLineEventConsumer -Arguments @{CommandLineTemplate='calc'}
+Set-WmiInstance -Class __FilterToConsumerBinding -Arguments @{Filter=$f;Consumer=$c}
+

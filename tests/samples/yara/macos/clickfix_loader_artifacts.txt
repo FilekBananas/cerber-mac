@@ -1,0 +1,7 @@
+# Inert YARA fixture for CERBER_MacOS_ClickFix_Loader_Artifacts - text only, not a working sample.
+payload dropper notes (inert):
+POST $C2/api/bot/heartbeat
+copy binary to ~/.mainhelper
+write wrapper ~/.agent
+plist ~/Library/LaunchDaemons/com.finder.helper.plist
+event cis_blocked when keyboard layout is Russian

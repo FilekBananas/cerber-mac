@@ -1,0 +1,2 @@
+& ($env:ComSpec[4,15,25]-Join'') ('write-host hi')
+

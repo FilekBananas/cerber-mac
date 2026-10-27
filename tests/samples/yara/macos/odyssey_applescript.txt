@@ -1,0 +1,4 @@
+-- Inert YARA fixture for CERBER_MacOS_Poseidon_Odyssey_Stealer
+set writemind to "/tmp/lovemrtrump/"
+do shell script "mkdir -p " & writemind
+do shell script "ditto -c -k --sequesterRsrc " & writemind & " /tmp/out.zip"

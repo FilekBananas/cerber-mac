@@ -1,0 +1,2 @@
+"%ProgramFiles%\Windows Defender\MpCmdRun.exe" -RemoveDefinitions -All
+

@@ -1,0 +1,4 @@
+esxcli vm process list
+esxcli vm process kill --type=force --world-id=1234
+find /vmfs/volumes/ -name "*.vmdk"
+

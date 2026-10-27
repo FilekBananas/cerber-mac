@@ -1,0 +1,6 @@
+# SYNTHETIC TEST FIXTURE - not a binary
+login.keychain-db
+/usr/bin/osascript
+/usr/bin/dscl
+/usr/bin/ditto
+/usr/bin/curl

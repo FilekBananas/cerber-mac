@@ -1,0 +1,12 @@
+amsiInitFailed
+System.Management.Automation.AmsiUtils
+NonPublic,Static
+SetValue($null,$true)
+amsiInitFailed
+System.Management.Automation.AmsiUtils
+NonPublic,Static
+SetValue($null,$true)
+amsiInitFailed
+System.Management.Automation.AmsiUtils
+NonPublic,Static
+SetValue($null,$true)

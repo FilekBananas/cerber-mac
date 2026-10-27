@@ -1,0 +1,4 @@
+All your files have been encrypted!
+To get the decryption key, pay 0.5 Bitcoin. Open Tor Browser and visit http://example.onion within 72 hours.
+Do not try to rename files.
+

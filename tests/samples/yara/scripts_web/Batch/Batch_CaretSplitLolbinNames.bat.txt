@@ -1,0 +1,2 @@
+cmd /c p^o^w^e^r^s^h^e^l^l -nop -w hidden -c "calc"
+

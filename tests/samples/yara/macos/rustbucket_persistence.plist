@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Inert YARA fixture for CERBER_MacOS_RustBucket_Fake_Apple_Secd -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.apple.systemupdate</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/user/Library/Metadata/System Update</string>
+        <string>https://example.invalid/</string>
+    </array>
+</dict>
+</plist>

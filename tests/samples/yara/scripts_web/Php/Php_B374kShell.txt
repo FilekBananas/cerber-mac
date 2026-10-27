@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$s_name = "b374k"; $s_pass = "x"; $s_ver = "2.8";
+

@@ -1,0 +1,7 @@
+{
+  "_note": "Benign test binaries built from hello.c (cc; universal = -arch arm64 -arch x86_64; hello_x86_upx = a padded hello packed with `upx --force-macos`; hello_adhoc = `codesign -s -`). Nothing here is harmful. Check with: python -m cerber.devtool tests/samples/executables/* --only exe_unpack,exe_macho,exe_misc",
+  "hello_arm64": {"max_score": 9, "detections": ["Heur:MachO.AdhocSigned"]},
+  "hello_universal": {"max_score": 9, "children": ["slice/x86_64", "slice/arm64"], "detections": ["Heur:MachO.Unsigned", "Heur:MachO.AdhocSigned"]},
+  "hello_x86_upx": {"children": ["upx-unpacked"], "detections": ["Heur:MachO.Packed.UPX", "Heur:MachO.Unsigned", "Heur:MachO.LCUnixThread"]},
+  "hello_adhoc": {"max_score": 9, "detections": ["Heur:MachO.AdhocSigned"]}
+}

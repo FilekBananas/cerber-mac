@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE
+$default_action = 'FilesMan'; function wsoLogin() {} function WSOsetcookie() {}
+

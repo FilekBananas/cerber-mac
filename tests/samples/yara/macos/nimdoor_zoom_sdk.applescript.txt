@@ -1,0 +1,4 @@
+-- Inert YARA fixture for CERBER_MacOS_NimDoor_BlueNoroff
+-- Zook SDK Update
+property u : "https://support.us05web-zoom.forum/"
+property p : "/Library/Application Support/Google LLC/GoogIe LLC"

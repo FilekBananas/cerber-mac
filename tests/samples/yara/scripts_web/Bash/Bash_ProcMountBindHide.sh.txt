@@ -1,0 +1,2 @@
+mount -o bind /tmp/empty /proc/$PID
+

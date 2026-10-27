@@ -1,0 +1,6 @@
+Set w = GetObject("winmgmts:\\.\root\cimv2")
+Set s = w.Get("Win32_ProcessStartup")
+s.ShowWindow = 0
+Set p = GetObject("winmgmts:\\.\root\cimv2:Win32_Process")
+p.Create "powershell -nop -c calc", Null, s, pid
+

