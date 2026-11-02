@@ -338,6 +338,14 @@ check(Fmt.compact(i.patternsTotal) == "7,2 mln" && Fmt.shortDate(i.dbBuilt) == "
             check(netEvents.count == 4 && netEvents.contains { $0.severity == .info && $0.kind == "inbound" }
                   && netEvents.contains { $0.severity == .suspicious && $0.remote == "185.220.101.4:9001" },
                   "monitor: 4 × net_event (info z sieci lokalnej, podejrzane połączenie)")
+            if let tor = netEvents.first(where: { $0.remote == "185.220.101.4:9001" }) {
+                check(tor.confidence == "medium" && tor.attack == "c2" && tor.ioc && tor.evidence.count == 3
+                      && tor.signals.count == 2 && tor.targetPath?.hasSuffix("/.helper/sync.py") == true
+                      && tor.confidenceLabel == "Pewność: średnia",
+                      "net_event: pewność, rodzaj ataku, dowody, sygnały, plik do kwarantanny, IOC")
+            } else { check(false, "net_event: połączenie z Tor") }
+            check(netEvents.filter { $0.confidence == nil }.allSatisfy { $0.evidence.isEmpty && !$0.ioc && $0.confidenceLabel == nil },
+                  "net_event bez nowych pól (starszy format) nadal dekodowany")
             if let firstNet = r.events.firstIndex(where: { if case .netStatus = $0 { return true }; return false }),
                let netStage = r.events.firstIndex(where: { if case .stage("network", _) = $0 { return true }; return false }) {
                 check(firstNet > netStage, "monitor: startuje po audycie sieci")
@@ -545,6 +553,9 @@ check(Fmt.compact(i.patternsTotal) == "7,2 mln" && Fmt.shortDate(i.dbBuilt) == "
               "watch_net: 3 zdarzenia, najnowsze na górze, 2 alarmy (\(np.netEvents.count), \(np.netAlerts))")
         check(np.netEvents.contains { $0.severity == .suspicious && $0.kindLabel == "Przychodzące" },
               "watch_net: połączenie z ekranem jako podejrzane")
+        check(np.netEvents.contains { $0.kindLabel == "Przychodzące" && $0.evidence.count == 2 && $0.confidenceLabel == "Pewność: średnia" }
+              && np.netEvents.contains { $0.id == "ne-1" && $0.evidence.isEmpty && $0.confidence == nil && !$0.ioc },
+              "watch_net: dowody i pewność; zdarzenie bez tych pól (starszy format) też dekodowane")
         check(np.netStatus?.polls == 12 && np.netStatus?.permissions == false && np.netStatus?.logChecked != nil
               && np.netStatus?.stats.publicNew == 17, "watch_net_status: sprawdzenia, dziennik, brak uprawnień TCC")
         check(np.netReport?.hasSuffix(".html") == true && FinderActions.exists(np.netReport), "raport sieci zapisany")
@@ -605,53 +616,58 @@ check(Fmt.compact(i.patternsTotal) == "7,2 mln" && Fmt.shortDate(i.dbBuilt) == "
 
         // ---------------------------------------------------------------- localhost API server (fake module)
         print("\n• API na localhost (atrapa cerber.api_server)")
-        let fm = FileManager.default
-        let apiRoot = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("cerber-api-selftest-\(ProcessInfo.processInfo.processIdentifier)")
-        try? fm.removeItem(at: apiRoot)
-        try? fm.createDirectory(at: apiRoot.appendingPathComponent("cerber"), withIntermediateDirectories: true)
-        try? fm.createDirectory(at: apiRoot.appendingPathComponent(".venv/bin"), withIntermediateDirectories: true)
-        let realPython = fm.isExecutableFile(atPath: config.venvPython.path) ? config.venvPython.path : "/usr/bin/python3"
-        try? fm.createSymbolicLink(atPath: apiRoot.appendingPathComponent(".venv/bin/python").path, withDestinationPath: realPython)
-        try? "".write(to: apiRoot.appendingPathComponent("cerber/__init__.py"), atomically: true, encoding: .utf8)
-        let fake = """
-        import argparse, json, os, signal, sys, time
-        ap = argparse.ArgumentParser(); ap.add_argument("--port", type=int, default=8765); ap.add_argument("--token")
-        a = ap.parse_args()
-        if os.environ.get("FAKE_API_CRASH") == "1":
-            print("Traceback (most recent call last):", file=sys.stderr)
-            print("OSError: [Errno 48] Address already in use", file=sys.stderr, flush=True)
-            sys.exit(1)
-        stop = []
-        signal.signal(signal.SIGINT, lambda *_: stop.append(1))
-        print(json.dumps({"ev": "api_ready", "url": f"http://127.0.0.1:{a.port}", "token": a.token,
-                          "docs": f"http://127.0.0.1:{a.port}/"}), flush=True)
-        print(f"serving with token {len(a.token or '')} chars", file=sys.stderr, flush=True)
-        while not stop:
-            time.sleep(0.05)
-        """
-        try? fake.write(to: apiRoot.appendingPathComponent("cerber/api_server.py"), atomically: true, encoding: .utf8)
-        let apiConfig = BackendConfig(root: apiRoot, mock: false)
-        let api = APIServer(config: apiConfig)
-        api.token = APIServer.generateToken()
-        check(api.token?.count == 43 && !(api.token ?? "").contains("="), "token: 32 bajty base64url (43 znaki)")
-        api.start()
-        waitUntil(15) { api.isRunning }
-        check(api.state == .running(url: "http://127.0.0.1:8765", docs: "http://127.0.0.1:8765/"), "serwer: api_ready → działa (\(api.state))")
-        check(api.curlExample.contains("Bearer \(api.token ?? "")") && api.curlExample.hasSuffix("/api/info"), "przykład curl z tokenem")
-        api.stop()
-        waitUntil(10) { api.state == .off }
-        check(api.state == .off, "wyłączenie: SIGINT → serwer zatrzymany")
-        setenv("FAKE_API_CRASH", "1", 1)
-        api.start()
-        waitUntil(15) { if case .failed = api.state { return true }; return false }
-        if case .failed(let msg) = api.state {
-            check(msg.contains("Address already in use") && !api.stderrTail.isEmpty, "awaria serwera: błąd z końcówką stderr")
-        } else { check(false, "awaria serwera: stan błędu (\(api.state))") }
-        unsetenv("FAKE_API_CRASH")
+        if BackendIntegrity.shared.isSealed {
+            // a sealed build runs only the backend it was sealed for – a temporary root is refused by design
+            print("    pominięto: zapieczętowana kompilacja nie uruchomi atrapy z tymczasowego katalogu")
+        } else {
+            let fm = FileManager.default
+            let apiRoot = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("cerber-api-selftest-\(ProcessInfo.processInfo.processIdentifier)")
+            try? fm.removeItem(at: apiRoot)
+            try? fm.createDirectory(at: apiRoot.appendingPathComponent("cerber"), withIntermediateDirectories: true)
+            try? fm.createDirectory(at: apiRoot.appendingPathComponent(".venv/bin"), withIntermediateDirectories: true)
+            let realPython = fm.isExecutableFile(atPath: config.venvPython.path) ? config.venvPython.path : "/usr/bin/python3"
+            try? fm.createSymbolicLink(atPath: apiRoot.appendingPathComponent(".venv/bin/python").path, withDestinationPath: realPython)
+            try? "".write(to: apiRoot.appendingPathComponent("cerber/__init__.py"), atomically: true, encoding: .utf8)
+            let fake = """
+            import argparse, json, os, signal, sys, time
+            ap = argparse.ArgumentParser(); ap.add_argument("--port", type=int, default=8765); ap.add_argument("--token")
+            a = ap.parse_args()
+            if os.environ.get("FAKE_API_CRASH") == "1":
+                print("Traceback (most recent call last):", file=sys.stderr)
+                print("OSError: [Errno 48] Address already in use", file=sys.stderr, flush=True)
+                sys.exit(1)
+            stop = []
+            signal.signal(signal.SIGINT, lambda *_: stop.append(1))
+            print(json.dumps({"ev": "api_ready", "url": f"http://127.0.0.1:{a.port}", "token": a.token,
+                              "docs": f"http://127.0.0.1:{a.port}/"}), flush=True)
+            print(f"serving with token {len(a.token or '')} chars", file=sys.stderr, flush=True)
+            while not stop:
+                time.sleep(0.05)
+            """
+            try? fake.write(to: apiRoot.appendingPathComponent("cerber/api_server.py"), atomically: true, encoding: .utf8)
+            let apiConfig = BackendConfig(root: apiRoot, mock: false)
+            let api = APIServer(config: apiConfig)
+            api.token = APIServer.generateToken()
+            check(api.token?.count == 43 && !(api.token ?? "").contains("="), "token: 32 bajty base64url (43 znaki)")
+            api.start()
+            waitUntil(15) { api.isRunning }
+            check(api.state == .running(url: "http://127.0.0.1:8765", docs: "http://127.0.0.1:8765/"), "serwer: api_ready → działa (\(api.state))")
+            check(api.curlExample.contains("Bearer \(api.token ?? "")") && api.curlExample.hasSuffix("/api/info"), "przykład curl z tokenem")
+            api.stop()
+            waitUntil(10) { api.state == .off }
+            check(api.state == .off, "wyłączenie: SIGINT → serwer zatrzymany")
+            setenv("FAKE_API_CRASH", "1", 1)
+            api.start()
+            waitUntil(15) { if case .failed = api.state { return true }; return false }
+            if case .failed(let msg) = api.state {
+                check(msg.contains("Address already in use") && !api.stderrTail.isEmpty, "awaria serwera: błąd z końcówką stderr")
+            } else { check(false, "awaria serwera: stan błędu (\(api.state))") }
+            unsetenv("FAKE_API_CRASH")
+            try? fm.removeItem(at: apiRoot)
+        }
         if case .event(.apiReady(let u, let t, let d)) = EventDecoder.decode(line: #"{"ev":"api_ready","url":"http://127.0.0.1:9000","token":"x","docs":"http://127.0.0.1:9000/"}"#) {
             check(u.hasSuffix(":9000") && t == "x" && d != nil, "zdarzenie api_ready")
         } else { check(false, "zdarzenie api_ready") }
-        try? fm.removeItem(at: apiRoot)
 
         // ---------------------------------------------------------------- lenient decoding
         print("\n• odporność dekodera")

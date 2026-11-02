@@ -418,6 +418,8 @@ INLINE_FLAGS = {"osascript": ("-e",), "python": ("-c",), "perl": ("-e", "-E"), "
 def interpreter_of(path: str) -> str | None:
     base = os.path.basename(path or "")
     base = re.sub(r"(?:[\d.]+|-[\d.]+)$", "", base)  # python3.12 -> python, perl5.30 -> perl
+    if base == "Python":        # macOS framework launcher: …/Python.framework/…/Python.app/Contents/MacOS/Python
+        base = "python"
     return base if base in INTERPRETERS else None
 
 

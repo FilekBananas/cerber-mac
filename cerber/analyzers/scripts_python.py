@@ -28,6 +28,14 @@ RULES = [
     R("ShellcodeCtypes", r"ctypes\b[^\n]{0,120}(?:VirtualAlloc|WriteProcessMemory)|"
       r"mmap\.mmap\s*\([^\n]{0,120}PROT_EXEC", 30, "Executable memory / shellcode loading via ctypes",
       "exec", need="ctypes|prot_exec"),
+    # dropper: decode/decompress a blob to a file, make it executable, then run it
+    R("DecodeDropRun",
+      r"(?:b64decode|b85decode|a85decode|b16decode|zlib\.decompress|lzma\.decompress|bz2\.decompress)"
+      r"[\s\S]{0,300}?\.chmod\s*\([^\n]{0,80}0o?[0-7]*[1357][0-7]{0,2}[\s\S]{0,400}?"
+      r"(?:subprocess\.(?:call|run|Popen)|os\.system|os\.execv?\w*|os\.popen)|"
+      r"(?:subprocess\.(?:call|run|Popen)|os\.system)[\s\S]{0,200}?"
+      r"(?:b64decode|zlib\.decompress|lzma\.decompress)[\s\S]{0,200}?\.chmod\s*\(", 30,
+      "Decodes a payload to disk, makes it executable and runs it", "decode,exec,dropper", need="chmod"),
     R("KeychainBrowser",
       r"login\.keychain|Library/Application Support/(?:Google/Chrome|BraveSoftware|Firefox)/[^\n]{0,80}"
       r"(?:Cookies|Login Data|key4\.db|logins\.json)|Cookies\.binarycookies", 10,
@@ -55,13 +63,26 @@ _BAD_IN_HOOK = re.compile(
     r"require\s*\(\s*['\"]https?:|eval\s*\(\s*atob\s*\(")
 
 
+def _is_package_manifest(obj: ScanObject, doc: dict) -> bool:
+    """A package.json (any name): malicious npm packages rename the manifest in test corpora and
+    droppers write it under odd names, but a real manifest always has a scripts map plus the usual
+    npm keys."""
+    if obj.name.lower() == "package.json":
+        return True
+    return isinstance(doc.get("scripts"), dict) and any(
+        k in doc for k in ("name", "version", "dependencies", "devDependencies", "bin", "main"))
+
+
 @register
 class NodePackageAnalyzer(Analyzer):
     name = "npm_pkg"
     order = 56
 
     def applies(self, obj: ScanObject) -> bool:
-        return obj.ftype == "json" and obj.name.lower() == "package.json" and obj.size < (4 << 20)
+        # .json files whose content embeds script-like strings (osascript/display dialog) can be
+        # mis-sniffed as a script language, so accept the extension when the body is a JSON object too
+        return obj.size < (4 << 20) and (
+            obj.ftype == "json" or (obj.extension == "json" and obj.data[:512].lstrip()[:1] == b"{"))
 
     def analyze(self, obj: ScanObject, ctx: ScanContext) -> None:
         try:
@@ -71,7 +92,7 @@ class NodePackageAnalyzer(Analyzer):
         if not isinstance(doc, dict):
             return
         scripts = doc.get("scripts")
-        if not isinstance(scripts, dict):
+        if not isinstance(scripts, dict) or not _is_package_manifest(obj, doc):
             return
         for hook in _INSTALL_HOOKS:
             cmd = scripts.get(hook)

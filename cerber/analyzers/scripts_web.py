@@ -21,8 +21,29 @@ JS_RULES = [
       r"WScript\.Shell", 15, "Executes commands via WScript.Shell (JScript/WSH)", "exec",
       need="wscript.shell|shell.application"),
     R("HttpDownload", r"ActiveXObject\s*\(\s*['\"](?:MSXML2\.XMLHTTP|WinHttp\.WinHttpRequest|ADODB\.Stream)|"
-      r"XMLHttpRequest\s*\(|\bfetch\s*\(\s*['\"]https?:", 0, "Downloads a remote resource", "download",
-      need="msxml2|winhttp|adodb.stream|xmlhttprequest|fetch"),
+      r"XMLHttpRequest\s*\(|\bfetch\s*\(\s*['\"]https?:|"
+      r"require\s*\(\s*['\"]https?['\"]\s*\)|\bhttps?\s*\.\s*get\s*\(|\baxios\s*\.\s*get\s*\(|"
+      r"node-fetch|\bgot\s*\(\s*['\"]https?:", 0, "Downloads a remote resource", "download",
+      need="msxml2|winhttp|adodb.stream|xmlhttprequest|fetch|https|http.get|axios|node-fetch|got("),
+    # --- JXA (JavaScript for Automation) on macOS: ObjC bridge, NSTask, NSURL download, base64 eval ---
+    R("JxaShellExec", r"\$\.NSTask\b|\.doShellScript\s*\(|Application\s*\([^)]{0,40}\)\s*\.\s*doShellScript", 15,
+      "JXA runs a shell command (NSTask / doShellScript)", "exec,jxa", need="nstask|doshellscript"),
+    R("JxaDownload", r"dataWithContentsOfURL|\$\.NSURL\s*\.\s*URLWithString|NSURLSession|NSMutableURLRequest", 0,
+      "JXA downloads a remote resource", "download,jxa",
+      need="datawithcontentsofurl|urlwithstring|nsurlsession|nsmutableurlrequest"),
+    R("JxaBase64Eval", r"initWithBase64EncodedString[\s\S]{0,200}?\beval\s*\(|\beval\s*\(\s*ObjC\.unwrap", 25,
+      "JXA decodes a base64 blob and evaluates it", "decode,exec,jxa", need="base64|objc.unwrap"),
+    R("NodeBufferEval",
+      r"(?-i:\beval|\bFunction)\s*\(\s*(?:[\w$.]+\s*\(\s*)?Buffer\s*\.\s*from\s*\([^\n)]{0,100}['\"]base64", 20,
+      "Decodes a base64 Buffer and executes it", "decode,exec", need="buffer.from"),
+    R("NodeHttpRce",
+      r"\bexec(?:Sync)?\s*\(\s*(?:decodeURIComponent\s*\(\s*)?req(?:uest)?\s*\.\s*(?:url|body|query|headers|params)",
+      40, "Executes attacker-controlled HTTP request data (remote command execution)", "exec", need="exec"),
+    # decode-then-shell inside a string literal (e.g. a doShellScript / exec argument): echo .. | base64 -d | sh
+    R("DecodePipeString",
+      r"(?:base64|base32)\s+(?:-d|-D|--decode)\b[^\n\"']{0,60}\|\s*(?:bash|sh|zsh)\b|"
+      r"\|\s*(?:base64|base32)\s+(?:-d|-D|--decode)\b[^\n\"']{0,40}\|\s*(?:bash|sh|zsh)\b", 25,
+      "Decodes an encoded blob and pipes it into a shell", "decode,exec", need="base64|base32"),
     R("SaveToDisk", r"\.SaveToFile\s*\(|\.WriteLine\s*\([^\n]{0,80}\.exe", 0,
       "Writes a payload to disk", "download", need="savetofile|writeline"),
     R("NodeChildProcess", r"require\s*\(\s*['\"]child_process['\"]\s*\)|\bchild_process\b|"
@@ -34,9 +55,23 @@ JS_RULES = [
       "Writes to the clipboard (fake-captcha ClickFix technique)", "clipboard",
       need="clipboard"),
     R("ClickFixLure", r"(?i)(?:i['\s]*m not a robot|verify (?:you are|you're) (?:a )?human|"
-      r"press\s+win\s*\+\s*r|windows\s*\+\s*r|\bhold\s+the\s+windows\s+key)", 0,
+      r"press\s+win\s*\+\s*r|windows\s*\+\s*r|\bhold\s+the\s+windows\s+key|"
+      r"(?:press|hit|type)\s+(?:command|cmd|⌘)\s*(?:\+|\s)\s*space|open\s+(?:terminal|spotlight)|"
+      r"paste(?:\s+(?:it|this|and))?[^\n]{0,40}(?:terminal|return|enter))", 0,
       "Fake-CAPTCHA / ClickFix social-engineering text", "lure",
-      need="not a robot|human|win + r|win+r|windows key"),
+      need="not a robot|human|win + r|win+r|windows key|command|cmd|spotlight|terminal|paste"),
+    # the ClickFix payload itself: a shell/PowerShell command planted in the clipboard for the victim to paste
+    R("ClipboardShellCommand",
+      r"(?:clipboard\s*\.\s*writeText|execCommand\s*\(\s*['\"]copy)[\s\S]{0,200}?"
+      r"(?:/bin/(?:ba|z)?sh|\bbash\s+-c|\bsh\s+-c|\bcurl\b[^\n]{0,80}\|\s*(?:ba|z)?sh|\biex\b|powershell|"
+      r"\bosascript\b|base64\s+-[dD]|/dev/tcp/)", 35,
+      "Plants a shell/PowerShell command in the clipboard (ClickFix paste-and-run)", "clipboard,exec",
+      need="writetext|execcommand"),
+    # applescript:// / x-apple URL schemes that carry a 'do shell script' body (ClickFix link lure)
+    R("AppleScriptUrlScheme",
+      r"(?:applescript|x-apple-[\w.]+)://[^\s\"'>]{0,200}(?:do(?:%20| )shell(?:%20| )script|script=)", 30,
+      "applescript:// URL scheme carrying a shell-script payload", "exec",
+      need="applescript://|x-apple"),
     R("Exfil", r"new\s+Image\s*\(\s*\)[^\n]{0,40}\.src\s*=[^\n]{0,40}(?:document\.cookie|btoa)|"
       r"\.send\s*\([^\n]{0,40}(?:document\.cookie|btoa)", 0, "Exfiltrates data to a remote endpoint",
       "exfil", need="new image|.send"),
@@ -44,6 +79,13 @@ JS_RULES = [
 JS_COMBOS = [
     C("ClickFixClipboard", "clipboard,lure", 45,
       "Fake-CAPTCHA page that plants a command in the clipboard", window=4000),
+    # JXA is macOS automation, practically never in benign web/JS bundles: downloading + running remote
+    # code (NSTask / doShellScript / base64-eval) through the ObjC bridge is a loader
+    C("JxaDownloadExec", "jxa,download,exec", 35, "JXA downloads and executes remote code", window=1500),
+    C("JxaDecodeExec", "jxa,decode,exec", 30, "JXA decodes and executes an embedded payload", window=1500),
+    # download + base64-decode + eval/Function in the same place: a remote-eval dropper
+    C("DownloadDecodeExec", "download,decode,exec", 30,
+      "Downloads content, decodes it and executes the result", window=1200),
 ]
 make_script_analyzer("JsAnalyzer", "js", {"javascript"}, "javascript", JS_RULES,
                      combos=JS_COMBOS, head_exclude=b"<?php")

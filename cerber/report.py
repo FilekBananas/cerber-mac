@@ -20,6 +20,10 @@ def _c(verdict: str, text: str) -> str:
 
 
 def human_bytes(n: float) -> str:
+    try:
+        n = float(n)
+    except (TypeError, ValueError):
+        return "?"
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024 or unit == "TB":
             return f"{n:,.1f} {unit}" if unit != "B" else f"{int(n)} B"
@@ -140,17 +144,46 @@ def quarantine_offer(r: dict) -> bool:
 SEV_PL = {"malicious": "groźne", "pua": "niechciane", "suspicious": "podejrzane", "low": "niskie", "info": "info"}
 
 
+def _n(v, spec: str = "") -> str:
+    """A number from report data – formatted, or escaped text when it is not a number. Results of sandboxed
+    scans are produced by a process that parsed untrusted files, so nothing in them is trusted as markup."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        try:
+            return format(v, spec)
+        except (TypeError, ValueError):
+            pass
+    return html.escape(str(v))
+
+
+def _f(v) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _safe_href(url) -> str:
+    """Only http(s) links in reports (no javascript:, data:, file:)."""
+    u = str(url or "").strip()
+    return u if u.lower().startswith(("https://", "http://")) and not any(c in u for c in "\x00\r\n\t") else "#"
+
+
+# reports are also opened in ordinary browsers (JavaScript on): no script, no external resource, ever
+REPORT_CSP = ('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; '
+              'img-src data:; base-uri \'none\'; form-action \'none\'">')
+
+
 def _monitor_html(mon: dict | None, e, table) -> str:
     """Mega: what the live watch saw during the scan session."""
     if not mon:
         return ""
     st = mon.get("stats") or {}
     out = [f'<h2>Sieć i zachowanie na żywo (w trakcie skanu)</h2><div class="card"><p>{e(str(mon.get("started")))} → '
-           f'{e(str(mon.get("ended")))} · sprawdzeń: {mon.get("polls", 0)} (co {mon.get("interval_s", 5):g} s) · '
-           f'nowe połączenia z Internetem: {st.get("public_new", 0)} · nowe otwarte porty: {st.get("listening_new", 0)} · '
-           f'połączenia przychodzące: {st.get("inbound", 0)} · nowe logowania: {st.get("sessions_new", 0)} · '
-           f'wysłano w trakcie: {human_bytes(st.get("uploaded_bytes") or 0)} · alarmy: {st.get("alerts", 0)} · '
-           f'przeskanowane nowe pliki/programy: {mon.get("targets_scanned", 0)}</p></div>']
+           f'{e(str(mon.get("ended")))} · sprawdzeń: {_n(mon.get("polls", 0))} (co {_n(mon.get("interval_s", 5), 'g')} s) · '
+           f'nowe połączenia z Internetem: {_n(st.get("public_new", 0))} · nowe otwarte porty: {_n(st.get("listening_new", 0))} · '
+           f'połączenia przychodzące: {_n(st.get("inbound", 0))} · nowe logowania: {_n(st.get("sessions_new", 0))} · '
+           f'wysłano w trakcie: {human_bytes(st.get("uploaded_bytes") or 0)} · alarmy: {_n(st.get("alerts", 0))} · '
+           f'przeskanowane nowe pliki/programy: {_n(mon.get("targets_scanned", 0))}</p></div>']
     out.append('<h3>Zdarzenia</h3><div class="card">' + table(
         ["czas", "waga", "co", "szczegóły", "proces", "adres"],
         [[x.get("time"), SEV_PL.get(x.get("severity"), x.get("severity")), x.get("title"), x.get("detail"),
@@ -184,9 +217,9 @@ def _network_html(net: dict | None, e) -> str:
         return "".join(out)
     s = net.get("summary") or {}
     out += [f'<h2>Sieć i zdalny dostęp</h2><div class="card"><p>Start systemu: {e(str(net.get("boot_time", "?")))} · '
-           f'porty otwarte na wszystkich interfejsach: {s.get("listening_all_interfaces", 0)} · połączenia publiczne: '
-           f'{s.get("public_connections", 0)} · narzędzia zdalnego dostępu: {s.get("remote_tools", 0)} · '
-           f'trafienia IOC: {s.get("ioc_hits", 0)} · wysłano od startu: '
+           f'porty otwarte na wszystkich interfejsach: {_n(s.get("listening_all_interfaces", 0))} · połączenia publiczne: '
+           f'{_n(s.get("public_connections", 0))} · narzędzia zdalnego dostępu: {_n(s.get("remote_tools", 0))} · '
+           f'trafienia IOC: {_n(s.get("ioc_hits", 0))} · wysłano od startu: '
            f'{human_bytes(s.get("uploaded_bytes_since_boot") or 0)}</p></div>']
     ra = net.get("remote_access") or []
     out.append('<h3>Zdalny dostęp</h3><div class="card">' + table(
@@ -217,11 +250,11 @@ def _network_html(net: dict | None, e) -> str:
         if sl.get("available"):
             c = sl.get("counts") or {}
             w = sl.get("window") or {}
-            out.append(f'<h3>Logi systemowe</h3><div class="card"><p>XProtect: {c.get("xprotect_scans", 0)} skanów, '
-                       f'{c.get("xprotect_detections", 0)} wykryć · Gatekeeper: {c.get("gatekeeper_blocks", 0)} blokad, '
-                       f'{c.get("gatekeeper_overrides", 0)} obejść · SSH: {c.get("ssh_accepted", 0)} udanych, '
-                       f'{c.get("ssh_failed", 0)} nieudanych · nieudane hasła: {c.get("auth_failures", 0)} · nowe elementy '
-                       f'w tle: {c.get("new_login_items", 0)}</p><p class="muted">Szczegółowe wpisy od '
+            out.append(f'<h3>Logi systemowe</h3><div class="card"><p>XProtect: {_n(c.get("xprotect_scans", 0))} skanów, '
+                       f'{_n(c.get("xprotect_detections", 0))} wykryć · Gatekeeper: {_n(c.get("gatekeeper_blocks", 0))} blokad, '
+                       f'{_n(c.get("gatekeeper_overrides", 0))} obejść · SSH: {_n(c.get("ssh_accepted", 0))} udanych, '
+                       f'{_n(c.get("ssh_failed", 0))} nieudanych · nieudane hasła: {_n(c.get("auth_failures", 0))} · nowe elementy '
+                       f'w tle: {_n(c.get("new_login_items", 0))}</p><p class="muted">Szczegółowe wpisy od '
                        f'{e(str(w.get("persist_since") or w.get("from") or "?"))}</p>'
                        + table(["kiedy", "waga", "co", "szczegóły"],
                                [[x.get("time"), SEV_PL.get(x.get("severity"), x.get("severity")), x.get("title"),
@@ -233,7 +266,7 @@ def _network_html(net: dict | None, e) -> str:
         gw, wf = lan.get("gateway") or {}, lan.get("wifi") or {}
         out.append(f'<h3>Sieć lokalna</h3><div class="card"><p>Wi‑Fi: {e(str(wf.get("security_label") or "?"))} · '
                    f'router {e(str(gw.get("ip") or "?"))} ({e(str(gw.get("mac") or "?"))}) · wpisów ARP: '
-                   f'{lan.get("arp_entries", 0)}</p>'
+                   f'{_n(lan.get("arp_entries", 0))}</p>'
                    + (table(["MAC", "adresy", "dlaczego"], [[x.get("mac"), ", ".join(x.get("ips") or []), x.get("reason")]
                                                            for x in lan["arp_suspicious"]]) if lan.get("arp_suspicious") else "")
                    + "</div>")
@@ -272,13 +305,13 @@ def _ai_html(ai: dict | None, e) -> str:
     if not ai:
         return ""
     cap = ai.get("cap") or 15
-    head = (f"<p><b>Ocena zarzutów przez AI:</b> {e(ai_family_text(ai))} (pewność {ai.get('confidence', 0):.2f}"
+    head = (f"<p><b>Ocena zarzutów przez AI:</b> {e(ai_family_text(ai))} (pewność {_n(ai.get('confidence', 0), '.2f')}"
             f"{'' if ai.get('agree', True) else ', odpowiedzi niezgodne'}) – {e(ai.get('summary_pl', ''))}")
     pts = ai.get("points")
     if pts is not None:
         raw = ai.get("points_raw", pts)
-        head += f" <b>{pts:+d} pkt</b>" + (f" <span class='muted'>(z {raw:+d}, limit ±{cap})</span>" if raw != pts else "")
-    head += f" <span class='muted'>(AI nie decyduje: zmienia wynik najwyżej o {cap} pkt)</span></p>"
+        head += f" <b>{_n(pts, '+d')} pkt</b>" + (f" <span class='muted'>(z {_n(raw, '+d')}, limit ±{_n(cap)})</span>" if raw != pts else "")
+    head += f" <span class='muted'>(AI nie decyduje: zmienia wynik najwyżej o {_n(cap)} pkt)</span></p>"
     accs = ai.get("accusations") or []
     if not accs:
         return head
@@ -288,8 +321,8 @@ def _ai_html(ai: dict | None, e) -> str:
         notes = ("" if a.get("agree", True) else " · niezgodne") + ("" if a.get("grounded", True) else " · cytat spoza pliku")
         quote = f"<br><code>{e(str(a.get('quote', ''))[:160])}</code>" if a.get("quote") else ""
         rows.append(f"<tr><td><code>{e(str(a.get('name')))}</code></td><td><span class='sev {cls}'>{e(label)}</span></td>"
-                    f"<td>{float(a.get('confidence') or 0):.2f}<span class='muted'>{e(notes)}</span></td>"
-                    f"<td>{e(str(a.get('reason_pl', '')))}{quote}</td><td>{int(a.get('points') or 0):+d}</td></tr>")
+                    f"<td>{_n(a.get('confidence') or 0, '.2f')}<span class='muted'>{e(notes)}</span></td>"
+                    f"<td>{e(str(a.get('reason_pl', '')))}{quote}</td><td>{_n(a.get('points') or 0, '+d')}</td></tr>")
     return (head + "<table><tr><th>zarzut</th><th>ocena AI</th><th>pewność</th><th>uzasadnienie</th><th>punkty</th></tr>"
             + "".join(rows) + "</table>")
 
@@ -299,17 +332,17 @@ def _detonation_html(det: dict | None, e) -> str:
     if not det or not det.get("ran"):
         return ""
     beh = "".join(f"<li><b>{e(str(b.get('title')))}</b> – {e(str(b.get('detail', '')))}"
-                  + (f"<br><code>{e(' | '.join(str(x) for x in (b.get('evidence') or [])[:3]))[:400]}</code>"
+                  + (f"<br><code>{e(' | '.join(str(x) for x in (b.get('evidence') or [])[:3])[:400])}</code>"
                      if b.get("evidence") else "") + "</li>" for b in det.get("behaviors") or [])
     net = ", ".join(e(str(n.get("url") or n.get("target"))) + (f" ({e(str(n['ioc']))})" if n.get("ioc") else "")
                     for n in (det.get("network") or [])[:15])
     stages = "".join(f"<pre><code>{e(str(st.get('source_preview', ''))[:600])}</code></pre>"
                      for st in (det.get("stages") or [])[:3])
     return (f'<div class="card"><p><b>Zachowanie w zamkniętym sandboksie</b> ({e(str(det.get("kind")))}, '
-            f'{det.get("seconds", 0)} s{", przerwano po limicie czasu" if det.get("timed_out") else ""}): '
+            f'{_n(det.get("seconds", 0))} s{", przerwano po limicie czasu" if det.get("timed_out") else ""}): '
             f'{e(str(det.get("verdict")))}</p>' + (f"<ul>{beh}</ul>" if beh else "<p>Nic podejrzanego.</p>")
             + (f"<p>Adresy: {net}</p>" if net else "")
-            + (f"<p>Pliki-przynęty: <code>{e(', '.join((det.get('files_read') or [])[:10]))}</code></p>"
+            + (f"<p>Pliki-przynęty: <code>{e(', '.join(str(x) for x in (det.get('files_read') or [])[:10]))}</code></p>"
                if det.get("files_read") else "")
             + (f"<p>Odkodowane etapy:</p>{stages}" if stages else "") + "</div>")
 
@@ -319,17 +352,17 @@ def _cloud_html(cf: dict | None) -> str:
     if not cf:
         return ""
     e = html.escape
-    kinds = ", ".join(f"{e(k)}: {n}" for k, n in (cf.get("kinds") or {}).items())
-    rows = [("Ryzykowne pliki tylko w chmurze", f"{cf.get('candidates', 0):,}"),
-            ("Pobrane i przeskanowane", f"{cf.get('fetched', 0):,} ({human_bytes(cf.get('bytes') or 0)})"
+    kinds = ", ".join(f"{e(str(k))}: {_n(n)}" for k, n in (cf.get("kinds") or {}).items())
+    rows = [("Ryzykowne pliki tylko w chmurze", f"{_n(cf.get('candidates', 0), ',')}"),
+            ("Pobrane i przeskanowane", f"{_n(cf.get('fetched', 0), ',')} ({human_bytes(cf.get('bytes') or 0)})"
              + (f" – {kinds}" if kinds else "")),
-            ("Oddane z powrotem do chmury", f"{cf.get('evicted', 0):,}")]
+            ("Oddane z powrotem do chmury", f"{_n(cf.get('evicted', 0), ',')}")]
     if cf.get("kept"):
-        rows.append(("Zostawione na dysku (coś znaleziono)", f"{cf['kept']:,}"))
+        rows.append(("Zostawione na dysku (coś znaleziono)", f"{_n(cf['kept'], ',')}"))
     if cf.get("local"):
-        rows.append(("Pliki z folderów, których lista była tylko w chmurze", f"{cf['local']:,}"))
+        rows.append(("Pliki z folderów, których lista była tylko w chmurze", f"{_n(cf['local'], ',')}"))
     if cf.get("dirs_listed") or cf.get("dirs_left"):
-        rows.append(("Foldery z chmury odczytane / nieodczytane", f"{cf.get('dirs_listed', 0):,} / {cf.get('dirs_left', 0):,}"))
+        rows.append(("Foldery z chmury odczytane / nieodczytane", f"{_n(cf.get('dirs_listed', 0), ',')} / {_n(cf.get('dirs_left', 0), ',')}"))
     left = (cf.get("over_limit") or 0) + (cf.get("too_big") or 0) + (cf.get("failed") or 0)
     if left:
         rows.append(("Niepobrane (limit 1500 plików / 3 GB / 30 min, za duże lub błąd)", f"{left:,}"))
@@ -371,16 +404,16 @@ def write_netguard_html(data: dict, path: str) -> str:
                        f'<td>{prog}</td><td><code>{e(str(x.get("host") or x.get("remote") or ""))}</code></td></tr>')
         return "".join(out) + "</table>"
 
-    tiles = "".join(f'<div class="tile"><span class="muted">{e(lbl)}</span><b>{val}</b></div>' for lbl, val in (
+    tiles = "".join(f'<div class="tile"><span class="muted">{e(lbl)}</span><b>{_n(val)}</b></div>' for lbl, val in (
         ("alarmy", len(alarms)), ("niskie", len(low)), ("nowe połączenia z Internetem", st.get("public_new", 0)),
         ("połączenia przychodzące", st.get("inbound", 0)), ("nowe otwarte porty", st.get("listening_new", 0)),
         ("logowania", st.get("sessions_new", 0)), ("wysłano", human_bytes(st.get("uploaded_bytes") or 0))))
     lim = "".join(f"<li>{e(str(x))}</li>" for x in st.get("limitations") or [])
     doc = f"""<!doctype html><html lang="pl"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Cerber – sieć i zdalny dostęp</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">{REPORT_CSP}<title>Cerber – sieć i zdalny dostęp</title>
 <style>{CSS}</style></head><body><main><h1>Cerber – sieć i zdalny dostęp</h1>
 <p class="muted">{e(str(data.get("date") or ""))} · nadzór od {e(str(data.get("started") or ""))} · aktualizacja
-{e(str(data.get("updated") or ""))} · sprawdzanie co {st.get("interval_s", 10):g} s · dziennik systemowy przejrzany do
+{e(str(data.get("updated") or ""))} · sprawdzanie co {_n(st.get("interval_s", 10), 'g')} s · dziennik systemowy przejrzany do
 {e(str(st.get("log_checked") or "—"))} · uprawnienia prywatności: {"śledzone" if st.get("permissions") else "niedostępne (brak Pełnego dostępu do dysku)"}</p>
 <div class="grid">{tiles}</div>
 <h2>Alarmy</h2><div class="card">{rows(alarms)}</div>
@@ -417,11 +450,11 @@ def _cases_html(cases: list | None, e) -> str:
         files = "".join(f"<li><code>{e(str(f.get('path')))}</code> – {e(str(f.get('verdict')))}</li>"
                         for f in (c.get("files") or [])[:15])
         out.append(f'<div class="card"><span class="v {sev.get(c.get("severity"), "INFO")}">{e(str(c.get("severity")))}'
-                   f'</span> <b>{e(str(c.get("name")))}</b> · wynik {c.get("score")} <p class="muted"><code>'
+                   f'</span> <b>{e(str(c.get("name")))}</b> · wynik {_n(c.get("score"))} <p class="muted"><code>'
                    f'{e(str(c.get("exe") or c.get("key")))}</code><br>pochodzenie: {e(str(c.get("origin") or "—"))}'
                    f'<br>wymiary: {e(dims)}</p><ul>{rows}</ul>'
-                   + (f"<p>Połączenia: {e(', '.join(c.get('connections') or []))}</p>" if c.get("connections") else "")
-                   + (f"<p>Porty: {e(', '.join(c.get('listening') or []))}</p>" if c.get("listening") else "")
+                   + (f"<p>Połączenia: {e(', '.join(str(x) for x in c.get('connections') or []))}</p>" if c.get("connections") else "")
+                   + (f"<p>Porty: {e(', '.join(str(x) for x in c.get('listening') or []))}</p>" if c.get("listening") else "")
                    + (f"<p>Pliki pakietu:</p><ul>{files}</ul>" if files else "") + "</div>")
     return "".join(out)
 
@@ -429,30 +462,30 @@ def _cases_html(cases: list | None, e) -> str:
 def write_html(report: dict, path: str, env: dict | None = None) -> str:
     e = html.escape
     c = report["counts"]
-    tiles = "".join(f'<div class="tile"><span class="v {k}">{VERDICT_PL[k]}</span><b>{c.get(k, 0):,}</b></div>'
+    tiles = "".join(f'<div class="tile"><span class="v {k}">{VERDICT_PL[k]}</span><b>{_n(c.get(k, 0), ',')}</b></div>'
                     for k in ("MALICIOUS", "PUA", "SUSPICIOUS", "INFO", "CLEAN"))
     rows = []
     for i, r in enumerate(report["results"]):
         dets = "".join(
-            f"<tr><td><code>{e(d['name'])}</code></td><td>{e(d['engine'])}</td><td>{e(d['confidence'])}</td>"
-            f"<td>+{d['score']}</td><td>{e(d['object'].rsplit('>>', 1)[-1] if '>>' in d['object'] else 'plik')}</td>"
-            f"<td>{e(d.get('description', '')[:200])}</td></tr>" for d in r["detections"][:40])
+            f"<tr><td><code>{e(str(d['name']))}</code></td><td>{e(str(d['engine']))}</td><td>{e(str(d['confidence']))}</td>"
+            f"<td>+{_n(d['score'])}</td><td>{e(str(d['object']).rsplit('>>', 1)[-1] if '>>' in str(d['object']) else 'plik')}</td>"
+            f"<td>{e(str(d.get('description', ''))[:200])}</td></tr>" for d in r["detections"][:40])
         ai_html = _ai_html(r.get("ai"), e)
         qhtml = (f'<a class="qbtn" data-i="{i}" href="cerber-report://quarantine/{i}">Do kwarantanny</a>'
                  if quarantine_offer(r) else
                  '<span class="qdone">✓ w kwarantannie</span>' if r.get("quarantined") else "")
         rows.append(
-            f'<div class="card"><span class="v {r["verdict"]}">{VERDICT_PL[r["verdict"]]}</span> '
-            f'<code>{e(r["path"])}</code>{qhtml}<p class="muted">wynik {r.get("score", 0)} · {e(str(r.get("ftype")))} · '
-            f'{human_bytes(r.get("size", 0))} · sha256 <code>{e(r.get("sha256", ""))}</code></p>{ai_html}'
+            f'<div class="card"><span class="v {e(str(r["verdict"]))}">{e(VERDICT_PL.get(r["verdict"], str(r["verdict"])))}</span> '
+            f'<code>{e(str(r["path"]))}</code>{qhtml}<p class="muted">wynik {_n(r.get("score", 0))} · {e(str(r.get("ftype")))} · '
+            f'{human_bytes(r.get("size", 0))} · sha256 <code>{e(str(r.get("sha256", "")))}</code></p>{ai_html}'
             f'{_detonation_html(r.get("detonation"), e)}'
             f'<table><tr><th>wykrycie</th><th>silnik</th><th>pewność</th><th>punkty</th><th>obiekt</th><th>opis</th></tr>'
             f'{dets}</table></div>')
     env_html = ""
     if env:
         items = "".join(f"<tr><td>{e(str(f.get('category')))}</td><td>{e(str(f.get('title')))}</td>"
-                        f"<td><code>{e(str(f.get('location', ''))[:200])}</code></td><td>+{f.get('score', 0)}</td></tr>"
-                        for f in sorted(env.get("findings", []), key=lambda f: -f.get("score", 0))[:200])
+                        f"<td><code>{e(str(f.get('location', ''))[:200])}</code></td><td>+{_n(f.get('score', 0))}</td></tr>"
+                        for f in sorted(env.get("findings", []), key=lambda f: -_f(f.get("score", 0)))[:200])
         post = "".join(f"<tr><td>{e(str(k))}</td><td>{e(str(v))}</td></tr>" for k, v in env.get("posture", {}).items())
         env_html = (f'<h2>Środowisko</h2><div class="card"><table>{post}</table></div>'
                     f'<div class="card"><table><tr><th>kategoria</th><th>znalezisko</th><th>lokalizacja</th>'
@@ -460,9 +493,9 @@ def write_html(report: dict, path: str, env: dict | None = None) -> str:
     net_html = _cases_html((env or {}).get("cases"), e) + _network_html(report.get("network"), e)
     sb = report.get("sandbox") or {}
     if sb:
-        iso = "".join(f"<li>{e(x)}</li>" for x in sb.get("isolation", []))
-        hit = "".join(f"<li>{e(x)}</li>" for x in sb.get("limits_hit", []))
-        env_html += (f'<h2>Sandbox</h2><div class="card"><p>Rozpakowano {sb.get("extracted_files", 0):,} plików '
+        iso = "".join(f"<li>{e(str(x))}</li>" for x in sb.get("isolation", []))
+        hit = "".join(f"<li>{e(str(x))}</li>" for x in sb.get("limits_hit", []))
+        env_html += (f'<h2>Sandbox</h2><div class="card"><p>Rozpakowano {_n(sb.get("extracted_files", 0), ',')} plików '
                      f'({human_bytes(sb.get("extracted_bytes", 0))}).</p><ul>{iso}</ul>'
                      + (f'<p><b>Osiągnięte limity:</b></p><ul>{hit}</ul>' if hit else "") + "</div>")
     repo = report.get("repo") or {}
@@ -470,21 +503,21 @@ def write_html(report: dict, path: str, env: dict | None = None) -> str:
         skipped = "".join(f"<tr><td><code>{e(str(x.get('path')))}</code></td><td>{human_bytes(x.get('size') or 0)}</td>"
                           f"<td>{e(str(x.get('reason')))}</td></tr>"
                           for x in (repo.get("partial") or []) + (repo.get("skipped") or [])[:300])
-        env_html += (f'<h2>Repozytorium</h2><div class="card"><p><a href="{e(repo.get("url", ""))}">'
-                     f'{e(repo.get("owner", ""))}/{e(repo.get("name", ""))}</a> · {e(str(repo.get("ref", "")))} · '
+        env_html += (f'<h2>Repozytorium</h2><div class="card"><p><a href="{e(_safe_href(repo.get("url", "")))}">'
+                     f'{e(str(repo.get("owner", "")))}/{e(str(repo.get("name", "")))}</a> · {e(str(repo.get("ref", "")))} · '
                      f'{e(str(repo.get("description") or ""))}</p>'
                      + (f'<table><tr><th>plik</th><th>rozmiar</th><th>jak sprawdzono</th></tr>{skipped}</table>'
                         if skipped else "") + "</div>")
     env_html += net_html
     dbs = e(json.dumps(report.get("databases", {}), ensure_ascii=False, indent=1, default=str))
-    cloud_note = (f" · pominięto {report['cloud_only']:,} elementów tylko w chmurze (iCloud itp.) – nie ma ich na dysku"
+    cloud_note = (f" · pominięto {_n(report['cloud_only'], ',')} elementów tylko w chmurze (iCloud itp.) – nie ma ich na dysku"
                   if report.get("cloud_only") else "")
     env_html += _cloud_html(report.get("cloud_fetch"))
     doc = f"""<!doctype html><html lang="pl"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Raport Cerber</title><style>{CSS}</style></head>
+<meta name="viewport" content="width=device-width,initial-scale=1">{REPORT_CSP}<title>Raport Cerber</title><style>{CSS}</style></head>
 <body><main><h1>Cerber – raport skanowania</h1>
-<p class="muted">{e(report['started'])} → {e(report['finished'])} · {report['seconds']} s · {report['files']:,} plików ·
-{human_bytes(report['bytes'])} · {report['objects']:,} obiektów · {report.get('patterns_total', 0):,} wzorców w bazach{cloud_note}</p>
+<p class="muted">{e(str(report['started']))} → {e(str(report['finished']))} · {_n(report['seconds'])} s · {_n(report['files'], ',')} plików ·
+{human_bytes(report['bytes'])} · {_n(report['objects'], ',')} obiektów · {_n(report.get('patterns_total', 0), ',')} wzorców w bazach{cloud_note}</p>
 <div class="grid">{tiles}</div>{env_html}<h2>Wykrycia</h2>{''.join(rows) or '<p>Nie znaleziono zagrożeń.</p>'}
 <details><summary>Bazy i opcje</summary><pre><code>{dbs}</code></pre></details></main></body></html>"""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)

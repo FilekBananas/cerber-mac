@@ -141,6 +141,9 @@ def build_profile(work: str, input_path: str | None = None, kind: str = "strict"
         "/opt/homebrew/etc/ca-certificates",
         py_prefix, venv, os.path.join(config.ROOT, "cerber"), config.COMPILED,
     ]
+    pyc = os.environ.get("PYTHONPYCACHEPREFIX")
+    if pyc and os.path.isdir(pyc):
+        reads.append(pyc)                       # sealed .pyc tree inside Cerber.app (read-only)
     execs = [py_real, os.path.join(py_prefix, "Resources/Python.app/Contents/MacOS/Python"),
              os.path.join(venv, "bin/python"), os.path.join(venv, "bin/python3"), os.path.join(venv, "bin/python3.14")]
     if kind in ("strict", "scan"):
@@ -205,6 +208,24 @@ def build_profile(work: str, input_path: str | None = None, kind: str = "strict"
         lines.append("(deny network-outbound (remote ip))")
         lines.append("(deny network-bind network-inbound)")
     return "\n".join(lines) + "\n"
+
+
+def python_env() -> dict[str, str]:
+    """PYTHON* variables for a Cerber interpreter started from Cerber's own code (sandboxed workers).
+
+    * sys.path gets only Cerber's import path – never the project root or the working directory, where a
+      stray json.py / mlx/ could shadow a module (PYTHONSAFEPATH; Cerber.app passes CERBER_PYPATH, a folder
+      that holds nothing but the `cerber` package link, see cerber/integrity.py),
+    * no user site-packages, no .pyc written, and .pyc read only from the sealed tree inside Cerber.app
+      (PYTHONPYCACHEPREFIX) – never from the writable __pycache__ folders next to the sources."""
+    pypath = os.environ.get("CERBER_PYPATH") or config.ROOT
+    env = {"PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1", "PYTHONUNBUFFERED": "1", "PYTHONSAFEPATH": "1",
+           "PYTHONPATH": pypath}
+    if os.environ.get("CERBER_PYPATH"):
+        env["CERBER_PYPATH"] = pypath
+    if os.environ.get("PYTHONPYCACHEPREFIX"):
+        env["PYTHONPYCACHEPREFIX"] = os.environ["PYTHONPYCACHEPREFIX"]
+    return env
 
 
 def _limits() -> None:
@@ -344,15 +365,16 @@ def run_inner(work: str, kind: str, inner_args: list[str], on_event: Callable[[d
     with open(os.path.join(work, f"sandbox-{kind}.sb"), "w") as fh:
         fh.write(profile)
     env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": os.path.join(work, "home"),
-           "TMPDIR": os.path.join(work, "tmp"), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
-           "PYTHONUNBUFFERED": "1", "PYTHONPATH": config.ROOT, "LANG": "pl_PL.UTF-8", "CERBER_HOME": config.HOME,
+           "TMPDIR": os.path.join(work, "tmp"), **python_env(), "LANG": "pl_PL.UTF-8", "CERBER_HOME": config.HOME,
            "CERBER_DISABLE_TOOLS": "hdiutil", "CERBER_SANDBOX": kind, "CERBER_REAL_HOME": os.path.expanduser("~"),
            "CERBER_NOEXEC": "1" if workspace_noexec(work) else "0"}
     if kind == "env":
         env["HOME"] = os.path.expanduser("~")       # the environment scan inspects the real home (read-only)
         if os.environ.get("CERBER_PRECOMPUTED"):
             env["CERBER_PRECOMPUTED"] = os.environ["CERBER_PRECOMPUTED"]
-    cmd = ["/usr/bin/sandbox-exec", "-f", os.path.join(work, f"sandbox-{kind}.sb"),
+    # the profile travels inline (-p): the copy in the workspace is for reference only – any process of the user
+    # can write there, and a profile swapped between writing and sandbox-exec reading it would loosen the sandbox
+    cmd = ["/usr/bin/sandbox-exec", "-p", profile,
            os.path.join(config.ROOT, ".venv", "bin", "python"), "-m", "cerber.sandbox"] + inner_args
     out_path = os.path.join(work, "out", out_name)
     if os.path.exists(out_path):
@@ -418,7 +440,7 @@ def run_inner(work: str, kind: str, inner_args: list[str], on_event: Callable[[d
             continue
         try:
             ev = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):            # RecursionError: absurdly nested JSON
             errs.append(line.rstrip()[:300])
             continue
         if isinstance(ev, dict) and isinstance(ev.get("ev"), str):

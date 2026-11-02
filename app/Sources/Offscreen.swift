@@ -101,7 +101,9 @@ enum Offscreen {
         try? fm.createDirectory(at: fullDir, withIntermediateDirectories: true)
 
         var config = BackendConfig.detect(forceMock: true)
-        if !fm.fileExists(atPath: config.mockScript.path) {
+        // the working-directory fallback is for unsealed developer builds only: a sealed build refuses any root other
+        // than the one it was sealed for (BackendIntegrity.gate)
+        if !fm.fileExists(atPath: config.mockScript.path) && !BackendIntegrity.shared.isSealed {
             config = BackendConfig(root: URL(fileURLWithPath: fm.currentDirectoryPath), mock: true)
         }
         let home = NSHomeDirectory()

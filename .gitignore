@@ -18,3 +18,8 @@ __pycache__/
 *.pem
 *.key
 *.p12
+
+# osobiste listy i wyniki pomiarów (ścieżki z tego Maca)
+tests/static_measure/exclude.local.txt
+tests/static_measure/clean_files.json
+tests/static_measure/results/

@@ -45,6 +45,9 @@ COLLECTORS: list[tuple[str, str, str]] = [
     ("plugins", "persistence", "collect_plugins"),
     ("shell", "shell", "collect_shell"),
     ("processes", "processes", "collect_processes"),
+    # attacks in progress: remote shells, browser/keychain/wallet stores held open by a program that does not own
+    # them (runs after "processes": reuses its process snapshot and provenance)
+    ("live", "live", "collect_live"),
     ("hosts", "network", "collect_hosts"),
     ("dns", "network", "collect_dns_proxy"),
     ("network", "network", "collect_network"),

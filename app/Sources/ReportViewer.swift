@@ -14,11 +14,17 @@ enum ReportViewer {
     static var config: BackendConfig?
     private static var windows: [String: ReportWindowController] = [:]
 
-    /// false when the file does not exist. Non-HTML files open in their default app.
+    /// false when the file does not exist. Anything that is not a plain .html file is only shown in Finder,
+    /// never opened: report paths arrive in backend events and history files, and "opening" a .command,
+    /// .terminal or .app named there would run it.
     @discardableResult
     static func open(_ path: String) -> Bool {
-        guard FileManager.default.fileExists(atPath: path) else { return false }
-        guard path.lowercased().hasSuffix(".html") else { return FinderActions.open(path) }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else { return false }
+        guard path.lowercased().hasSuffix(".html"), !isDir.boolValue else {
+            FinderActions.reveal(path)
+            return true
+        }
         if let c = windows[path] {
             c.page.load()
             c.window?.makeKeyAndOrderFront(nil)
@@ -108,11 +114,25 @@ final class ReportPage {
             }
         }
         text = text.replacingOccurrences(of: "</head>", with: "<style>.qbtn{display:inline-block}</style></head>")
-        html = text
+        html = Self.withPolicy(text)
         version += 1
     }
 
     static let doneHTML = "<span class=\"qdone\">✓ przeniesiono do kwarantanny</span>"
+
+    /// No script, no network, no frames, no forms – whatever ended up in the file (a report is built from scan
+    /// results, i.e. from names and strings inside untrusted files, and the reports folder is writable by any
+    /// program of the user). Inserted right after the doctype, before anything the page could load.
+    static let policyMeta = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'\">"
+
+    static func withPolicy(_ text: String) -> String {
+        if text.lowercased().hasPrefix("<!doctype"), let end = text.firstIndex(of: ">") {
+            var t = text
+            t.insert(contentsOf: policyMeta, at: t.index(after: end))
+            return t
+        }
+        return policyMeta + text
+    }
 
     /// nil = may be moved; otherwise why not (shown instead of the button).
     func check(_ i: Int) -> String? {
@@ -142,6 +162,16 @@ final class ReportPage {
             return
         }
         let path = results[i]["path"].text ?? ""
+        // The click happened inside a page that any program could have written: confirm with the real path
+        // from the JSON twin in a native window before anything is moved.
+        let confirm = NSAlert()
+        confirm.alertStyle = .warning
+        confirm.messageText = "Przenieść ten plik do kwarantanny?"
+        confirm.informativeText = path + "\n\nWerdykt: " + (results[i]["verdict"].text ?? "?")
+            + ", wynik " + String(Int(results[i]["score"].double ?? 0)) + ". Plik zostanie zaszyfrowany i usunięty z tego miejsca; można go przywrócić."
+        confirm.addButton(withTitle: "Przenieś do kwarantanny")
+        confirm.addButton(withTitle: "Anuluj")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
         busy.insert(i)
         patch?("var a=document.querySelector('a.qbtn[data-i=\"\(i)\"]');if(a){a.textContent='Przenoszę…';a.style.opacity='0.6';}")
         Task { @MainActor in
@@ -246,23 +276,31 @@ struct ReportWebView: NSViewRepresentable {
 
         init(page: ReportPage) { self.page = page }
 
+        /// The report document itself (loadHTMLString with the report folder as base URL).
+        private func isDocument(_ url: URL) -> Bool {
+            let dir = URL(fileURLWithPath: (page.path as NSString).deletingLastPathComponent, isDirectory: true)
+            return url.isFileURL && url.standardizedFileURL.path == dir.standardizedFileURL.path
+        }
+
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = action.request.url else { decisionHandler(.cancel); return }
             if url.scheme == "cerber-report" {
-                if url.host == "quarantine", let i = Int(url.lastPathComponent), action.navigationType == .linkActivated {
-                    page.quarantine(i)
-                }
                 decisionHandler(.cancel)
+                if url.host == "quarantine", let i = Int(url.lastPathComponent), action.navigationType == .linkActivated {
+                    let page = self.page
+                    DispatchQueue.main.async { page.quarantine(i) }      // native confirmation first (modal)
+                }
                 return
             }
             if action.navigationType == .linkActivated {
                 if let s = url.scheme?.lowercased(), s == "http" || s == "https" { NSWorkspace.shared.open(url) }
-                decisionHandler(url.isFileURL && url.fragment != nil ? .allow : .cancel)
+                decisionHandler(isDocument(url) && url.fragment != nil ? .allow : .cancel)     // in-page anchors only
                 return
             }
             // The page itself (loadHTMLString with the report folder as base) – nothing else is loaded.
-            decisionHandler(url.isFileURL || url.scheme == "about" ? .allow : .cancel)
+            let main = action.targetFrame?.isMainFrame ?? false
+            decisionHandler(main && (isDocument(url) || url.absoluteString == "about:blank") ? .allow : .cancel)
         }
     }
 }

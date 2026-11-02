@@ -59,6 +59,8 @@ def main() -> int:
     results = [
         run("analyzers load", ["-c", "from cerber.analyzers import load_all; print(len(load_all()), 'analyzers')"]),
         run("script analyzers", ["-m", "unittest", "tests.test_scripts"]),
+        run("static heuristics (capability chains, configs, JXA, keychain FP gating)",
+            ["-m", "unittest", "tests.test_static_heuristics"]),
         run("archive extraction", ["-m", "unittest", "tests.test_archives"]),
         run("model/ML analyzers", ["-m", "unittest", "tests.test_models_ml"]),
         run("network & remote-access audit", ["-m", "unittest", "tests.test_netaudit"]),
@@ -80,7 +82,9 @@ def main() -> int:
             ["-m", "unittest", "tests.test_netguard"]),
         run("provenance, names, correlation (process + network + autostart + files)",
             ["-m", "unittest", "tests.test_correlate"]),
+        run("live attacks (remote shells, secret stores held open, stealer staging)", ["-m", "unittest", "tests.test_live"]),
         run("local HTTP API (auth, queue, streams; mock + real info)", ["-m", "unittest", "tests.test_api_server"]),
+        run("self-hardening (integrity seal, escaping, API, quarantine, sandboxes)", ["-m", "unittest", "tests.test_hardening"]),
         run("false-positive gating (Windows-script YARA rules vs disk images / Mach-O)",
             ["-m", "unittest", "tests.test_fp_gating"]),
         sample_verdicts(),

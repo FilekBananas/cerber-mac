@@ -14,7 +14,6 @@ from __future__ import annotations
 import html
 import json
 import os
-import pickle
 import re
 from collections import defaultdict
 
@@ -23,6 +22,7 @@ import ahocorasick_rs
 from ..core import Confidence, Detection, ScanContext, ScanObject
 from ..formats import exeinfo
 from ..pipeline import Engine
+from .clamav_db import load_pickle
 from .clamav_sig import SigError, compile_pattern, compile_pcre, parse_expr, parse_offset, resolve_offset
 
 TEXT_TYPES = {"script", "shell", "python", "powershell", "vbs", "javascript", "batch", "applescript",
@@ -114,14 +114,15 @@ class ClamAVEngine(Engine):
         self.disabled = disabled or set()
         with open(os.path.join(compiled_dir, "meta.json")) as fh:
             self.meta = json.load(fh)
+        # restricted unpickler: plain containers and array.array only, never code (see clamav_db.DBUnpickler)
         with open(os.path.join(compiled_dir, "sigs.pkl"), "rb") as fh:
-            self.sigs = pickle.load(fh)
+            self.sigs = load_pickle(fh)
         with open(os.path.join(compiled_dir, "pats.pkl"), "rb") as fh:
-            self.pat_sig, self.pat_spec, self.pat_exact, self.pat_alen = pickle.load(fh)
+            self.pat_sig, self.pat_spec, self.pat_exact, self.pat_alen = load_pickle(fh)
         with open(os.path.join(compiled_dir, "groups.pkl"), "rb") as fh:
-            self.groups = pickle.load(fh)
+            self.groups = load_pickle(fh)
         with open(os.path.join(compiled_dir, "slow.pkl"), "rb") as fh:
-            self.slow = pickle.load(fh)
+            self.slow = load_pickle(fh)
         # automata are built lazily (Rust Aho-Corasick); call preload() before forking workers
         self._ac_files: dict[tuple[int, int], str] = {}
         for fn in os.listdir(compiled_dir):
@@ -142,7 +143,7 @@ class ClamAVEngine(Engine):
             if path is None:
                 return None
             with open(path, "rb") as fh:
-                keys, gids = pickle.load(fh)
+                keys, gids = load_pickle(fh)
             a = (ahocorasick_rs.BytesAhoCorasick(keys, matchkind=ahocorasick_rs.MATCHKIND_STANDARD), gids)
             self.ac[key] = a
         return a

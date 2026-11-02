@@ -1130,11 +1130,16 @@ def cmd_watch(level, quarantine, idle, net=False):
              "title": "Ktoś połączył się z Twoim Makiem: Udostępnianie ekranu (VNC) z 192.168.1.23",
              "detail": "Udostępnianie ekranu (VNC)", "process": "screensharingd", "pid": 901,
              "exe": "/System/Library/CoreServices/RemoteManagement/screensharingd.bundle/Contents/MacOS/screensharingd",
-             "remote": "192.168.1.23:50122", "host": None, "signer": "Apple"},
+             "remote": "192.168.1.23:50122", "host": None, "signer": "Apple",
+             "confidence": "medium", "attack": None, "trust": "apple", "ioc": False, "target": None,
+             "evidence": ["Zdalne sterowanie ekranem tego Maca (VNC) [192.168.1.23:50122]",
+                          "Połączenie z innego komputera w sieci lokalnej, nie z tego Maca"],
+             "signals": ["NetWatch.Inbound.ScreenSharing"]},
             {"id": "ne-3", "time": now()[11:], "kind": "log", "severity": "low", "score": 12,
              "title": "Błędne hasło przy odblokowaniu Maca", "detail": "uprawnienie: system.login.screensaver · wpis w "
              "dzienniku o " + now()[11:], "process": "authd", "pid": None, "exe": None, "remote": None, "host": None,
-             "signer": None},
+             "signer": None, "confidence": "low", "evidence": ["Nieudane odblokowanie Maca hasłem [1×]"],
+             "signals": ["NetWatch.Syslog.AuthFailure"], "ioc": False},
         ]
         for it in net_items:
             if not wait(0.4):
@@ -1433,7 +1438,12 @@ class LiveNetMonitor:
             "detail": "Skrypt ~/Library/Application Support/.helper/sync.py łączy się z adresem z sieci Tor "
                       "(port 9001 – typowy dla przekaźników Tor). Wcześniej tego połączenia nie było.",
             "process": "python3", "pid": 5120, "exe": "/usr/bin/python3",
-            "remote": "185.220.101.4:9001", "host": None, "signer": "Apple"}),
+            "remote": "185.220.101.4:9001", "host": None, "signer": "Apple",
+            "confidence": "medium", "attack": "c2", "trust": "apple", "ioc": True,
+            "target": os.path.expanduser("~/Library/Application Support/.helper/sync.py"),
+            "evidence": ["Skrypt z ukrytego folderu łączy się z przekaźnikiem Tor [185.220.101.4:9001]",
+                         "Adres na liście zagrożeń (węzły Tor)", "Port 9001 – typowy dla przekaźników Tor"],
+            "signals": ["NetWatch.Script.UnusualPort", "NetWatch.IocConnection"]}),
         (("scan", 0.7), {
             "kind": "traffic", "severity": "info",
             "title": "Duże wysyłanie: Dropbox wysłał 412 MB w trakcie skanu",

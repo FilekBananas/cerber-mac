@@ -1946,8 +1946,10 @@ def _in_sandbox(job: dict, emit: Emit, cancel: threading.Event, light: bool) -> 
         with open(jp, "w") as fh:
             json.dump(job, fh)
 
+        from .gui_backend import IPHONE_EVENTS, child_event
+
         def relay(ev: dict) -> None:
-            if ev.get("ev") in ("inner_done",):
+            if child_event(ev, IPHONE_EVENTS) is None:       # allow-list: the child must not speak for the parent
                 return
             if light and ev.get("ev") == "log":
                 return
@@ -2158,7 +2160,7 @@ VERDICT_TEXT = {"MALICIOUS": "Znaleziono ślady groźnego oprogramowania", "SUSP
 
 
 def write_html(s: dict, path: str) -> str:
-    from .report import CSS, VERDICT_PL
+    from .report import CSS, REPORT_CSP, VERDICT_PL, _n
     e = html.escape
     dev = s.get("device") or {}
     bk = s.get("backup") or {}
@@ -2167,10 +2169,11 @@ def write_html(s: dict, path: str) -> str:
     rows = []
     for f in s.get("findings") or []:
         ev = "".join(f"<li><code>{e(str(x))}</code></li>" for x in (f.get("evidence") or [])[:40])
-        more = f.get("evidence_total", 0) - min(40, len(f.get("evidence") or []))
+        total = f.get("evidence_total", 0)
+        more = (total if isinstance(total, int) else 0) - min(40, len(f.get("evidence") or []))
         adv = "".join(f"<li>{e(a)}</li>" for a in f.get("advice") or [])
-        rows.append(f'<div class="card"><span class="sev sev-{e(f["severity"])}">{e(SEV_PL.get(f["severity"], ""))}'
-                    f'</span> <b>{e(f["title"])}</b> <span class="muted">· {f.get("score", 0)} pkt · '
+        rows.append(f'<div class="card"><span class="sev sev-{e(str(f["severity"]))}">{e(SEV_PL.get(f["severity"], ""))}'
+                    f'</span> <b>{e(str(f["title"]))}</b> <span class="muted">· {_n(f.get("score", 0))} pkt · '
                     f'{e(str(f.get("location") or ""))}</span><p>{e(f.get("description") or "")}</p>'
                     + (f"<details open><summary>Dowody</summary><ul>{ev}</ul>"
                        + (f"<p class='muted'>… i {more} więcej</p>" if more > 0 else "") + "</details>" if ev else "")
@@ -2202,9 +2205,9 @@ def write_html(s: dict, path: str) -> str:
                    "aplikacji. Zrób kopię zapasową (bez szyfrowania) i sprawdź ponownie.</p>",
            "partial": "<p class='muted'>Sprawdzenie niepełne – zobacz „Ograniczenia”.</p>"}.get(s.get("coverage"), "")
     doc = f"""<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Cerber – iPhone: {e(s.get('title', ''))}</title>
-<meta name="viewport" content="width=device-width, initial-scale=1"><style>{CSS}</style></head><body><main>
+<meta name="viewport" content="width=device-width, initial-scale=1">{REPORT_CSP}<style>{CSS}</style></head><body><main>
 <h1>Cerber – sprawdzenie iPhone'a</h1>
-<p class="muted">{e(s.get('started', ''))} → {e(s.get('finished', ''))} ({s.get('seconds', 0)} s) · analiza lokalna, nic nie
+<p class="muted">{e(s.get('started', ''))} → {e(s.get('finished', ''))} ({_n(s.get('seconds', 0))} s) · analiza lokalna, nic nie
 zostało wysłane do sieci · kopia i telefon nie zostały zmienione</p>
 <div class="card"><span class="v {e(v)}">{e(VERDICT_PL.get(v, v))}</span> <b>{e(VERDICT_TEXT.get(v, ''))}</b>{cov}</div>
 <div class="grid">{tiles}</div>
@@ -2215,7 +2218,7 @@ zostało wysłane do sieci · kopia i telefon nie zostały zmienione</p>
 {'<h2>Ograniczenia</h2><div class="card"><ul>' + lim + '</ul></div>' if lim else ''}
 {'<h2>Profile konfiguracyjne</h2><div class="card"><table><tr><th>nazwa</th><th>organizacja</th><th>zawartość</th><th>instalacja</th></tr>' + profs + '</table></div>' if profs else ''}
 {'<h2>Aplikacje</h2><div class="card"><table><tr><th>nazwa</th><th>identyfikator</th><th>źródło</th><th>instalacja</th></tr>' + apps + '</table></div>' if apps else ''}
-<h2>Wskaźniki iOS</h2><div class="card"><p>{ind.get('total', 0):,} wskaźników (baza z {e(str(ind.get('built') or '—'))}).
+<h2>Wskaźniki iOS</h2><div class="card"><p>{_n(ind.get('total', 0), ',')} wskaźników (baza z {e(str(ind.get('built') or '—'))}).
 Trafienie we wskaźnik to poważny sygnał, ale nie ostateczny dowód – w razie wątpliwości skonsultuj wynik ze
 specjalistami (np. Access Now Helpline).</p><table><tr><th>źródło</th><th>licencja</th><th>adres</th></tr>{srcs}</table></div>
 </main></body></html>"""

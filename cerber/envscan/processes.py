@@ -9,6 +9,7 @@ from collections import defaultdict
 from ..core import Confidence
 from .model import Signal
 from .patterns import analyze_command, classify_path, command_signals, is_apple_path, path_signals, redact
+from .live import script_signals
 from .provenance import TRUSTED, name_signals, origin, origin_signals, quarantine_events
 from .util import EnvContext
 
@@ -36,6 +37,12 @@ DOCUMENT_APPS = {"Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "M
                  "Numbers", "Keynote", "Preview", "Mail", "Adobe Acrobat Reader", "AdobeReader", "TextEdit"}
 BROWSER_EXES = re.compile(r"/(?:Google Chrome|Chromium|Brave Browser|Microsoft Edge|Arc|Opera|Vivaldi|"
                           r"Google Chrome Canary|Google Chrome Beta|Thorium)(?:\.app)?/Contents/MacOS/[^/]+$")
+BROWSER_MAIN = re.compile(r"/(?:Safari|Firefox[^/]*|LibreWolf|Waterfox[^/]*|Orion|Zen[^/]*)\.app/Contents/MacOS/[^/]+$")
+# native messaging hosts (password managers, Claude …) and Chrome's own updater are started by the browser itself
+BROWSER_CHILD_OK = re.compile(r"chrome-extension://|moz-extension://|NativeMessagingHosts|[Kk]eystone|GoogleUpdater")
+# Apple apps whose names a fake program likes to borrow (daemons: APPLE_DAEMON_NAMES)
+APPLE_APP_NAMES = frozenset({"Safari", "System Settings", "System Preferences", "Software Update", "Keychain Access",
+                             "App Store", "Activity Monitor"})
 AUTOMATION_FLAGS = ("--enable-automation", "--remote-debugging-pipe", "--test-type", "--headless")
 
 
@@ -156,11 +163,17 @@ def collect_processes(ctx: EnvContext) -> None:
             if pi.has("volume") and sinfo.trusted:
                 sigs = [s for s in sigs if not s.name.endswith("VolumePath")]  # signed installers run from DMGs
         names = {_base(exe), info0.get("name") or ""}
-        if (names & APPLE_DAEMON_NAMES or any(n.startswith("com.apple.") for n in names)) and not pi.has("apple") \
-                and not (sinfo and sinfo.is_apple):
-            sigs.append(Signal(f"{P}.AppleMasquerade", 50, Confidence.HIGH,
-                               "proces o nazwie jak demon systemowy Apple działa spoza woluminu systemowego",
-                               [f"name={info0.get('name')}", f"exe={exe}"]))
+        if (names & (APPLE_DAEMON_NAMES | APPLE_APP_NAMES) or any(n.startswith("com.apple.") for n in names)) \
+                and not pi.has("apple") and not (sinfo and sinfo.is_apple):
+            if pi.has("pkgmgr"):          # Homebrew's `lsd` (ls replacement), `cron` ports …: a name clash, no disguise
+                sigs.append(Signal(f"{P}.AppleNameClash", 5, Confidence.LOW,
+                                   "program z menedżera pakietów nosi nazwę jak element systemu Apple",
+                                   [f"name={info0.get('name')}", f"exe={exe}"]))
+            else:
+                sigs.append(Signal(f"{P}.AppleMasquerade", 50, Confidence.HIGH,
+                                   "proces o nazwie jak demon systemowy lub aplikacja Apple działa spoza systemu "
+                                   "i nie jest podpisany przez Apple (podszywanie się)",
+                                   [f"name={info0.get('name')}", f"exe={exe}"]))
         if re.search(r"(?i)\b(?:xmrig|xmr-stak|minerd|cpuminer|ccminer|nbminer|lolminer|nanominer|srbminer)\b",
                      os.path.basename(exe)):
             sigs.append(Signal(f"{P}.MinerBinary", 60, Confidence.HIGH, "program koparki kryptowalut", [exe],
@@ -194,6 +207,11 @@ def collect_processes(ctx: EnvContext) -> None:
         exe = info.get("exe") or cmd[0]
         text = " ".join(cmd)
         sigs = command_signals(text, P, "wiersz poleceń", skip=("LaunchctlLoad", "EncodedData"))
+        try:                                    # the static script heuristics on what the interpreter runs
+            sigs += script_signals(cmd, P, home or os.path.expanduser("~"),
+                                   have={s.name.rsplit(".", 1)[-1] for s in sigs})
+        except Exception:  # noqa: BLE001
+            pass
         ci = analyze_command(cmd)
         if ci.interpreter and ci.script:
             sp = ci.script
@@ -259,6 +277,12 @@ def collect_processes(ctx: EnvContext) -> None:
             if parent in DOCUMENT_APPS or (chain and os.path.basename(chain[0].get("exe") or "") in DOCUMENT_APPS):
                 sigs.append(Signal(f"{P}.DocumentAppSpawn", 40, Confidence.HIGH,
                                    f"przeglądarka/edytor dokumentów uruchomił '{me}'", [f"{parent} > {me}"]))
+            pexe = chain[0].get("exe") or ""
+            if (BROWSER_EXES.search(pexe) or BROWSER_MAIN.search(pexe)) and not any(
+                    BROWSER_CHILD_OK.search(str(a)) for a in cmd):
+                sigs.append(Signal(f"{P}.BrowserSpawn", 35, Confidence.MEDIUM,
+                                   f"przeglądarka uruchomiła '{me}' (nie jako dodatek rozszerzenia) – tak działa "
+                                   "exploit lub fałszywa aktualizacja/CAPTCHA", [f"{parent} > {me}", redact(text, 160)]))
         if not sigs:
             continue
         details = {"pid": pid, "ppid": info.get("ppid"), "user": info.get("username"), "exe": exe,

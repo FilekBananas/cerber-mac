@@ -167,12 +167,64 @@ class Cancel:
         return self.event.is_set()
 
 
+# What a sandboxed child may say to the app (app/PROTOCOL.md, "Events from sandboxed children"). A child taken over
+# by a scanned file must not speak for this unsandboxed process: `done`/`history` carry report paths the app opens,
+# `quarantined`, `ai_installed` (a llama-server path the app would start), `api_ready`, `info` … come only from here.
+CHILD_EVENTS = frozenset({"log", "stage", "progress", "finding", "error", "sandbox_violation"})
+NETWATCH_EVENTS = frozenset({"log", "error", "sandbox_violation", "net_event", "net_status", "watch_target"})
+IPHONE_EVENTS = frozenset({"log", "stage", "progress", "error", "sandbox_violation", "iphone_finding"})
+REPORT_KEYS = ("report_html", "report_json")
+
+
+def _report_path_ok(p) -> bool:
+    """None/"" or a path that resolves inside Cerber's reports folder."""
+    if p is None or p == "":
+        return True
+    if not isinstance(p, str) or "\x00" in p or len(p) > 4096:
+        return False
+    base = os.path.realpath(config.REPORTS)
+    return os.path.realpath(p).startswith(base + os.sep)
+
+
+def _report_paths_ok(obj, depth: int = 0) -> bool:
+    """Every report_html / report_json anywhere in `obj` lies inside config.REPORTS (nesting is bounded)."""
+    if depth > 16:
+        return False
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in REPORT_KEYS and not _report_path_ok(v):
+                return False
+            if isinstance(v, (dict, list)) and not _report_paths_ok(v, depth + 1):
+                return False
+    elif isinstance(obj, list):
+        return all(_report_paths_ok(v, depth + 1) for v in obj if isinstance(v, (dict, list)))
+    return True
+
+
+def child_event(ev, allowed: frozenset = CHILD_EVENTS) -> dict | None:
+    """`ev` from a sandboxed child when the app may see it, otherwise None (dropped, noted on stderr)."""
+    kind = ev.get("ev") if isinstance(ev, dict) else None
+    if kind in allowed and _report_paths_ok(ev):
+        return ev
+    if kind != "inner_done":
+        print(f"Cerber: odrzucono zdarzenie procesu z sandboksa: {str(kind)[:40]!r}", file=sys.stderr)
+    return None
+
+
 def _relay(sandboxed: bool):
     def relay(ev: dict) -> None:
-        if ev.get("ev") == "inner_done":
+        ev = child_event(ev)
+        if ev is None:
             return
-        if ev.get("ev") == "finding":
-            ev = {"ev": "finding", "item": public_result(ev["item"], sandboxed=sandboxed)}
+        if ev["ev"] == "finding":
+            item = ev.get("item")
+            try:
+                if not isinstance(item, dict) or not isinstance(item.get("path"), str):
+                    raise TypeError("item")
+                ev = {"ev": "finding", "item": public_result(item, sandboxed=sandboxed)}
+            except (KeyError, TypeError, AttributeError, ValueError):
+                print("Cerber: odrzucono nieprawidłowe znalezisko z sandboksa", file=sys.stderr)
+                return
         emit(ev)
     return relay
 
@@ -192,7 +244,14 @@ class LiveWatch:
         self.thread = threading.Thread(target=self._run, daemon=True, name="cerber-livewatch")
 
     def _relay(self, ev: dict) -> None:
+        if child_event(ev, NETWATCH_EVENTS) is None:
+            return
         kind = ev.get("ev")
+        if kind == "net_event":
+            if isinstance(ev.get("item"), dict):
+                from .watch import clean_net_item       # known keys, plain types, bounded lengths
+                emit({"ev": "net_event", "item": clean_net_item(ev["item"])})
+            return
         if kind == "watch_target":
             p = ev.get("path")
             if isinstance(p, str) and p.startswith("/") and "\n" not in p and len(p) < 4096:
@@ -201,7 +260,7 @@ class LiveWatch:
                         self.targets[p] = str(ev.get("reason") or "")[:200]
                         self._write([p])
             return
-        if kind in ("net_event", "net_status", "log", "sandbox_violation"):
+        if kind in ("net_status", "log", "sandbox_violation"):
             emit(ev)
         elif kind == "error":
             emit({**ev, "fatal": False})

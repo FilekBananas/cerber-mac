@@ -404,14 +404,46 @@ _JSLOC_RX = re.compile(r"""(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']{1,2
 _TITLE_RX = re.compile(r"<title[^>]*>(.{0,300}?)</title>", re.I | re.S)
 
 
+def _local_host(host: str | None) -> bool:
+    """True for loopback / private / link-local addresses (or names resolving to one)."""
+    import ipaddress
+    import socket
+    if not host:
+        return False
+    h = host.strip("[]").lower()
+    if h == "localhost" or h.endswith((".localhost", ".local")):
+        return True
+    try:
+        addrs = {ai[4][0] for ai in socket.getaddrinfo(h, None)}
+    except (OSError, UnicodeError, ValueError):
+        return False
+    for a in addrs:
+        try:
+            ip = ipaddress.ip_address(a.split("%", 1)[0])
+        except ValueError:
+            continue
+        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified or ip.is_reserved or ip.is_multicast:
+            return True
+    return False
+
+
 class _Redirects(urllib.request.HTTPRedirectHandler):
-    def __init__(self):
+    """Counts hops; only http(s); a public page may not bounce the download into this computer or the LAN
+    (local services such as Cerber's own API or the AI engine listen on 127.0.0.1)."""
+
+    def __init__(self, allow_local: bool = True):
         self.chain: list[str] = []
+        self.allow_local = allow_local
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         self.chain.append(newurl)
         if len(self.chain) > 10:
             raise FetchError("za dużo przekierowań (>10)")
+        u = urllib.parse.urlparse(newurl)
+        if u.scheme.lower() not in ("http", "https"):
+            raise FetchError(f"przekierowanie na nieobsługiwany adres ({u.scheme or 'brak schematu'}) odrzucone")
+        if not self.allow_local and _local_host(u.hostname):
+            raise FetchError(f"przekierowanie do sieci lokalnej ({u.hostname}) odrzucone")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -523,7 +555,8 @@ def fetch_url(url: str, work: str, emit: Callable[[dict], None], cancel=None) ->
     hits, verdict = _ioc_hits(url, p.hostname, info["ip"])
     state = {"bytes": 0, "files": 0, "files_total": 1, "total": None}
     emit({"ev": "stage", "id": "download", "title": "Pobieranie w sandboksie…"})
-    red = _Redirects()
+    allow_local = _local_host(p.hostname)          # only when the user asked for a local address explicitly
+    red = _Redirects(allow_local)
     try:
         resp = _open(url, red)
     except urllib.error.HTTPError as exc:
@@ -586,6 +619,9 @@ def fetch_url(url: str, work: str, emit: Callable[[dict], None], cancel=None) ->
             full = urllib.parse.urljoin(final, u.strip())
             if not full.lower().startswith(("http://", "https://")) or full in seen or full == final:
                 continue
+            if not allow_local and _local_host(urllib.parse.urlparse(full).hostname):
+                info["skipped"].append({"url": full, "reason": "adres w sieci lokalnej / na tym komputerze – pominięto"})
+                continue
             seen.add(full)
             cand.append(full)
         t = _TITLE_RX.search(html)
@@ -602,7 +638,7 @@ def fetch_url(url: str, work: str, emit: Callable[[dict], None], cancel=None) ->
                 hh, vv = _ioc_hits(u, urllib.parse.urlparse(u).hostname or "", None)
                 hits += [h for h in hh if h not in hits]
                 verdict = max(verdict, vv, key=["CLEAN", "SUSPICIOUS", "MALICIOUS"].index)
-                with _open(u) as r2:
+                with _open(u, _Redirects(allow_local)) as r2:
                     ct2 = (r2.headers.get("Content-Type") or "").lower()
                     if "text/html" in ct2 and "attachment" not in (r2.headers.get("Content-Disposition") or "").lower():
                         info["skipped"].append({"url": u, "reason": "to kolejna strona, nie plik"})

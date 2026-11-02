@@ -16,6 +16,7 @@ from . import register
 MAX_SCAN = 2 << 20          # characters of text given to the rule engine per object
 MAX_LAYER_TEXT = 512 << 10  # characters taken from each decoded layer
 MAX_CHILDREN = 48           # decoded layers handed back per object
+MAX_POSITIONS = 16          # match offsets remembered per rule for combo proximity
 
 # capabilities that make obfuscation actually worth reporting
 _ACTIONABLE = frozenset({"exec", "download", "decode", "cred", "exfil", "persist", "evasion",
@@ -32,11 +33,15 @@ class Rule:
     desc: str = ""
     caps: tuple[str, ...] = ()
     need: tuple[str, ...] = ()   # any-of lowercase substrings required before running rx
+    # context that explains the behaviour away when it occurs anywhere in the same text, e.g. a script that
+    # stores its own token with `security add-generic-password` and reads it back later is not a stealer
+    unless: re.Pattern[str] | None = None
 
 
-def R(name: str, pattern: str, score: int, desc: str, caps: str = "", need: str = "") -> Rule:
+def R(name: str, pattern: str, score: int, desc: str, caps: str = "", need: str = "", unless: str = "") -> Rule:
     return Rule(name, re.compile(pattern, re.I | re.M), score, desc,
-                tuple(c for c in caps.split(",") if c), tuple(n for n in need.split("|") if n))
+                tuple(c for c in caps.split(",") if c), tuple(n for n in need.split("|") if n),
+                re.compile(unless, re.I | re.M) if unless else None)
 
 
 @dataclass
@@ -61,6 +66,13 @@ COMBOS = [
     C("PersistentDownloader", "persist,download", 25, "Persistence combined with remote download", window=1200),
     C("EvasionAndExecution", "evasion", 20, "Security-control tampering together with code execution",
       "exec,download", window=1200),
+    # stealer staging: secrets / browser / wallet data collected, packed and sent away in one script
+    C("CollectArchiveExfil", "archive,exfil", 40,
+      "Collects sensitive data (credentials / browser / wallets), archives it and uploads the archive",
+      "cred,browser,keychain,wallet,collect", window=4000),
+    C("WalletExfil", "wallet,exfil", 40, "Targets crypto-wallet data and uploads it", window=4000),
+    # a file written to a temp/hidden path, made executable and started, right after a download
+    C("DownloadDropRun", "download,dropper", 30, "Downloads a file, marks it executable and runs it", window=800),
 ]
 
 
@@ -84,9 +96,20 @@ def scan_text(text: str, rules: list[Rule], hits: Hits | None = None) -> Hits:
         m = rule.rx.search(text)
         if not m:
             continue
+        if rule.unless is not None and rule.unless.search(text):
+            continue
         hits.caps.update(rule.caps)
-        for cap in rule.caps:
-            hits.add_pos(cap, m.start())
+        if rule.caps:
+            # every occurrence counts for the proximity of combos (a script may download at the top and
+            # execute far below, then download again right next to the execution)
+            starts = [m.start()]
+            for m2 in rule.rx.finditer(text, m.end()):
+                starts.append(m2.start())
+                if len(starts) >= MAX_POSITIONS:
+                    break
+            for cap in rule.caps:
+                for st in starts:
+                    hits.add_pos(cap, st)
         if rule.score > 0 and rule.name not in seen:
             seen.add(rule.name)
             hits.dets.append((rule, m.group(0)[:200]))
@@ -97,7 +120,7 @@ def _near(hits: Hits, caps: tuple[str, ...], window: int) -> bool:
     """True if there is a text window of `window` chars containing a match of every cap in caps."""
     if not caps:
         return True
-    lists = [hits.pos.get(c) for c in caps]
+    lists = [sorted(hits.pos.get(c) or ()) for c in caps]   # bisect needs sorted offsets
     if any(not lst for lst in lists):
         return False
     if len(caps) == 1:

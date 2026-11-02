@@ -4,7 +4,8 @@ from __future__ import annotations
 import os
 import shutil
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# realpath: Cerber.app imports the package through .venv/cerber-path/cerber (a symlink), see cerber/integrity.py
+ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 HOME = os.environ.get("CERBER_HOME", ROOT)
 
 DB = os.path.join(HOME, "db")
@@ -43,6 +44,26 @@ def tools() -> dict[str, str]:
     return found
 
 
+PRIVATE_DIRS = ("QUARANTINE", "REPORTS")       # malware copies and scan results: owner only (0700)
+
+
 def ensure_dirs() -> None:
     for d in (DB, CLAMAV_RAW, COMPILED, YARA_SOURCES, FEEDS, QUARANTINE, REPORTS):
         os.makedirs(d, exist_ok=True)
+    for name in PRIVATE_DIRS:
+        private_dir(globals()[name])
+
+
+def private_dir(path: str) -> str:
+    """Create `path` as a real directory readable only by the owner; refuse a symlink in its place."""
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    st = os.lstat(path)
+    import stat as _stat
+    if not _stat.S_ISDIR(st.st_mode):
+        raise OSError(f"{path} nie jest katalogiem (dowiązanie?) – odmowa użycia")
+    if st.st_uid == os.getuid() and st.st_mode & 0o077:
+        try:
+            os.chmod(path, 0o700)
+        except OSError:                 # e.g. inside a sandbox, where the project folder is read-only
+            pass
+    return path

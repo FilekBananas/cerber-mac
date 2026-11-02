@@ -74,7 +74,7 @@ T = TypeVar("T")
 # preferred first: the accusation verifier's model (cerber.ai_install), then the older Granite 4.0 H Tiny
 DEFAULT_MODEL_GLOBS = ("foundation-sec-1.1-8b-instruct*.gguf", "granite-4.0-h-tiny*.gguf")
 DEFAULT_MODEL_GLOB = DEFAULT_MODEL_GLOBS[-1]
-DEFAULT_MODEL_ROOTS = (os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+DEFAULT_MODEL_ROOTS = (os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))),
                                     "models"),            # Cerber's own copy (cerber.ai_install)
                        "~/.lmstudio/models", "~/.localcode/models")
 

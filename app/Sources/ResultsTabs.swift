@@ -971,6 +971,23 @@ struct NetEventRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
+                if !event.evidence.isEmpty || event.confidenceLabel != nil || event.ioc {
+                    VStack(alignment: .leading, spacing: 3) {
+                        let head = [event.confidenceLabel, event.ioc ? "adres z listy zagrożeń" : nil].compactMap { $0 }
+                        if !head.isEmpty {
+                            Text(head.joined(separator: " · "))
+                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(color)
+                        }
+                        ForEach(Array(event.evidence.prefix(5).enumerated()), id: \.offset) { _, e in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text("›").foregroundStyle(color)
+                                Text(Fmt.tilde(e)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                            }
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 if event.process != nil || target != nil || event.signer != nil {
                     HStack(spacing: 14) {
                         if let p = event.process { NetCells.process(p, pid: event.pid, exe: event.exe) }

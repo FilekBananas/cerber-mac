@@ -15,6 +15,40 @@ cwd = <ROOT>   (ROOT = the Cerber project folder, e.g. /Users/jan/Documents/anty
   `"cancelled": true` and partial results. If no `done` arrives within 10 s, send `SIGTERM`.
 * The backend never installs anything, never starts at login, and exits when the command is done.
 
+## Integrity seal (sealed builds of Cerber.app)
+
+Cerber.app has Full Disk Access and every process it starts inherits it, while the backend is plain Python in
+user-writable folders. `app/build.sh` therefore pins the backend at build time (`cerber/integrity.py`):
+
+* `.pyc` files are precompiled into `Cerber.app/Contents/Resources/pycache`; a manifest of every file the backend
+  executes or deserialises – `cerber/`, `rules/`, `.venv`, the interpreter with its stdlib and Homebrew libraries,
+  the tools (7-Zip, UPX, llama-server, libimobiledevice), `app/mock_backend.py`, `db/compiled/clamav/*.pkl` and
+  `db/compiled/yara.bin` – is written to `Contents/Resources/backend.manifest`, and its SHA-256 is linked into the
+  executable (`__TEXT,__cerber_seal`, covered by the code signature).
+* Before **every** backend process (gui_backend commands, background protection, the API server, the self-test's
+  child processes) the app re-checks the files (`BackendIntegrity` in `Backend.swift`). On any difference the command
+  is not started: the caller gets an error (or `/usr/bin/false`) and the app shows a critical window listing the
+  changed files. A sealed build runs only the root it was sealed for (`CERBER_ROOT` is ignored) and only
+  `<ROOT>/.venv/bin/python` (`/usr/bin/python3` only as the mock's fallback).
+* The child environment is built from scratch, never inherited: `PATH`, `HOME`, `TMPDIR`, `LANG`, plus
+  `PYTHONSAFEPATH=1`, `PYTHONPATH=CERBER_PYPATH=<ROOT>/.venv/cerber-path` (a folder holding only the `cerber` link –
+  the project root is never on `sys.path`), `PYTHONPYCACHEPREFIX=<bundle>/Contents/Resources/pycache`,
+  `PYTHONNOUSERSITE=1`, `PYTHONDONTWRITEBYTECODE=1`. Sandboxed children get the same through `sandbox.python_env()`;
+  the detonation interpreter runs with `-I`, so it gets `-B -X pycache_prefix=<same tree>` instead.
+* `./cerber.sh update` rewrites `db/compiled` (ClamAV pickles, YARA rules): the next backend start shows the window
+  with the changes and a **"Zatwierdź obecny stan…"** button. Approving asks for the administrator password and stores
+  the new digest in a root-owned file bound to this build (`/Library/Application Support/Cerber/backend.seal`; the
+  manifest goes to `~/Library/Application Support/Cerber/backend.manifest`). Rebuilding the app works too.
+* `brew upgrade` of Python or of any sealed keg (Python's libraries – openssl@3, xz, zstd, sqlite, mpdecimal –,
+  sevenzip, upx, llama.cpp with ggml/libomp, libimobiledevice when installed; the exact list is the `T`/`F`/`L` header
+  of `backend.manifest`) moves files to new versioned Cellar paths – not approvable in the app, rebuild with `app/build.sh`.
+* Every rebuild produces a new ad-hoc signature: macOS treats it as another app, so Full Disk Access has to be
+  granted again (System Settings → Privacy & Security → Full Disk Access: remove the old entry, add the new app).
+* Build switches: `CERBER_BUNDLE=/path/Cerber.app app/build.sh` builds elsewhere (still sealed for this project root);
+  `CERBER_NO_SEAL=1` builds an unsealed developer app (no check, `CERBER_ROOT` honoured, the self-test's temporary-root
+  fake API test runs – never for daily use with Full Disk Access); `CERBER_DEBUG=1` = unoptimised build.
+  A sealed build's `--selftest-parse` skips the fake API test (a temporary root is refused by design).
+
 ## Commands
 
 | command | args | what it does |
@@ -61,6 +95,21 @@ the level picker exists only on the "Przeskanuj laptop" screen. The optional `--
 ## Events
 
 Every event has `"ev"`. Unknown events/fields must be ignored by the app.
+
+**Events from sandboxed children.** The scanning, unpacking, download, environment, live-network and iPhone analysis
+code runs in sandboxed child processes; `gui_backend` relays their events through an allow-list
+(`gui_backend.child_event`) – a child taken over by a scanned file must not be able to speak for the unsandboxed
+backend:
+
+| child | events relayed to the app |
+|---|---|
+| `scan` / `strict` / `env` / `net` (file scans, archives, downloads, environment) | `log`, `stage`, `progress`, `finding` (rebuilt by the parent as RESULT), `error`, `sandbox_violation` |
+| live network watch (Mega) | `net_event` (item cleaned: known keys, plain types, bounded lengths), `net_status`, `log`, `error` (never fatal), `sandbox_violation`; `watch_target` is consumed by the backend |
+| iPhone analysis | `log`, `stage`, `progress`, `iphone_finding`, `error`, `sandbox_violation` |
+
+Everything else (`done`, `history`, `quarantined`, `ai_installed`, `api_ready`, `info`, `iphone_done`, …) only ever
+comes from the parent itself; any child event in which a `report_html` / `report_json` value (at any depth) does not
+resolve inside the reports folder is dropped as well. Dropped events are noted on stderr.
 
 ```jsonc
 {"ev": "info", "patterns_total": 7215172, "clamav_signatures": 428287, "yara_rules": 13356,
@@ -139,8 +188,19 @@ NET_EVENT = {"id": "ne-12", "time": "12:03:44",
              "title": "Nowe połączenie skryptu na nietypowym porcie: python3 → 185.220.101.4:9001",
              "detail": "…",
              "process": "python3", "pid": 123, "exe": "/usr/bin/python3",          // any of these six
-             "remote": "185.220.101.4:9001", "host": "example.com", "signer": "Apple"}   // may be null or missing
+             "remote": "185.220.101.4:9001", "host": "example.com", "signer": "Apple",   // may be null or missing
+             // runtime detection – optional, older events and reports lack them:
+             "confidence": "high|medium|low" | null,     // high = malicious: act; medium = suspicious; low = the rest
+             "attack": "remote_shell|credential_theft|c2|download_exec|injection|masquerade|suspicious_chain|deleted_exe|miner" | null,
+             "evidence": ["Polish line, strongest first", …],   // ≤ 8 lines of ≤ 300 chars
+             "signals": ["NetWatch.…", …],                       // ≤ 12 signal names
+             "target": "/path/to/file" | null,           // the file to quarantine: an untrusted program or the script an interpreter runs
+             "trust": "apple|appstore|devid|pkgmgr|local_build|untrusted|unknown" | null,   // provenance tier of `exe`
+             "ioc": false}                               // true: the remote address is on a threat list
 ```
+
+The app shows `evidence` (up to 5 lines) under the event, headed by the confidence ("Pewność: wysoka / średnia /
+niska", alerts only) and "adres z listy zagrożeń" when `ioc` is true.
 
 `info` = notable but harmless (e.g. a signed app opened a port, an Apple device from the LAN connected) – the app
 shows it in neutral grey; `low` = mild (yellow); `suspicious`/`pua` = orange; `malicious` = red. The app shows a
@@ -394,7 +454,9 @@ raises an alarm about are scanned like downloads (kind `network`, quiet unless f
 {"ev": "watch_ready", …, "net": true, "net_report": "/…/reports/siec-20261010.html"}
 {"ev": "watch_net", "item": {"id": "ne-3", "time": "10:12:31", "kind": "connection|listen|inbound|session|process|traffic|autostart|file|gateway|log|permission",
  "severity": "info|low|suspicious|pua|malicious", "score": 45, "title": "…", "detail": "…", "process": "…", "pid": 901,
- "exe": "…", "remote": "ip:port", "host": null, "signer": "…", "date": "2026-10-10"}, "report": "/…/siec-20261010.html"}
+ "exe": "…", "remote": "ip:port", "host": null, "signer": "…", "date": "2026-10-10",
+ "confidence": "medium", "attack": null, "evidence": ["…"], "signals": ["…"], "target": null, "trust": "apple",
+ "ioc": false}, "report": "/…/siec-20261010.html"}          // item = NET_EVENT, cleaned by the watcher (cerber.watch.clean_net_item)
 {"ev": "watch_net_status", "active": true, "since": "…", "polls": 120, "interval_s": 10.0, "log_checked": "2026-10-10 10:12:19",
  "permissions": false, "limitations": ["…"], "connections_new": 41, "public_new": 17, "listening_new": 1, "inbound": 1,
  "sessions_new": 0, "processes_remote": 1, "uploaded_bytes": 48000000, "alerts": 1, "report": "…",

@@ -420,7 +420,9 @@ def _guarded_command(cmd: list[str]) -> list[str]:
     inside the sandbox — otherwise Python scans the working directory, which for
     a development install sits in ``~/Documents`` and is denied.
     """
-    return [sys.executable, "-I", "-c", _PARENT_GUARD_SRC, *cmd]
+    pyc = os.environ.get("PYTHONPYCACHEPREFIX")       # -I ignores the variable: pass the sealed .pyc tree
+    return [sys.executable, "-I", "-B", *(["-X", f"pycache_prefix={pyc}"] if pyc else []), "-c", _PARENT_GUARD_SRC,
+            *cmd]
 
 
 def _register_group(pgid: int, description: str) -> None:
@@ -850,7 +852,9 @@ class HttpEngine(Engine):
             # The guard shim is this very interpreter, which in a development
             # install lives under ~/Documents — a directory the profile denies.
             # Without this the sandboxed process cannot even start Python.
-            plan = SandboxPlan(read=[*plan.read, Path(sys.executable).parent, Path(sys.prefix)],
+            pyc = os.environ.get("PYTHONPYCACHEPREFIX")
+            plan = SandboxPlan(read=[*plan.read, Path(sys.executable).parent, Path(sys.prefix),
+                                     *([Path(pyc)] if pyc else [])],
                                write=list(plan.write), local_network=plan.local_network)
         argv, self.sandboxed, self._sandbox_profile = sandbox.wrap(
             argv, plan, settings=getattr(self, "_settings", None))

@@ -50,7 +50,7 @@ import uuid
 from typing import Callable
 
 from . import config
-from .sandbox import _kill_tracked, _killpg, new_workspace, remove_workspace
+from .sandbox import _kill_tracked, _killpg, new_workspace, python_env, remove_workspace
 
 # --------------------------------------------------------------------------- tunables / limits
 WALL_SECONDS = 15                 # default wall-clock budget (configurable per call)
@@ -136,6 +136,22 @@ def _python_execs() -> list[str]:
         elif c.endswith("/MacOS/Python"):          # may be reached via a non-realpath path
             out.append(c)
     return out
+
+
+def _pycache_prefix() -> str | None:
+    """The sealed, read-only .pyc tree inside Cerber.app (PYTHONPYCACHEPREFIX of sandbox.python_env()), if any."""
+    return python_env().get("PYTHONPYCACHEPREFIX")
+
+
+def _py_options() -> list[str]:
+    """Options of the detonation interpreter. `-I` makes Python ignore every PYTHON* variable, so the hardening
+    that sandbox.python_env() passes through the environment is given as options here: -B (no .pyc written) and
+    -X pycache_prefix (.pyc read only from the sealed tree, never from the writable __pycache__ folders)."""
+    opts = ["-I", "-B"]
+    pyc = _pycache_prefix()
+    if pyc:
+        opts += ["-X", f"pycache_prefix={pyc}"]
+    return opts
 
 
 def _q(path: str) -> str:
@@ -251,6 +267,8 @@ def build_profile(work: str, script: str, kind: str) -> str:
     if kind == "python":
         reads += [venv, _real(sys.base_prefix), "/opt/homebrew/Cellar/python@3.14",
                   "/opt/homebrew/opt/python@3.14"]
+        if _pycache_prefix():
+            reads.append(_real(_pycache_prefix()))      # sealed .pyc tree (read-only, see _py_options)
 
     lines = [
         "(version 1)",
@@ -893,8 +911,9 @@ def detonate_file(path: str, kind: str, timeout: int = WALL_SECONDS,
 
         profile = build_profile(work, script_path, kind) \
             .replace(DENYTAG_TOKEN, denytag).replace(BAITTAG_TOKEN, baittag)
-        prof_path = os.path.join(work, "detonate.sb")
-        with open(prof_path, "w") as fh:
+        # reference copy only: the profile travels inline (-p) – a file in the workspace could be swapped by
+        # anything running as the user between writing it and sandbox-exec reading it
+        with open(os.path.join(work, "detonate.sb"), "w") as fh:
             fh.write(profile)
 
         env = {"PATH": "/usr/bin:/bin", "HOME": home, "CFFIXED_USER_HOME": home,
@@ -916,9 +935,9 @@ def detonate_file(path: str, kind: str, timeout: int = WALL_SECONDS,
         else:
             env["CERBER_AUDIT_LOG"] = audit_log
             env["CERBER_TARGET"] = script_path
-            inner = [_real(sys.executable), "-I", "_wrapper.py"]
+            inner = [_real(sys.executable)] + _py_options() + ["_wrapper.py"]
 
-        cmd = ["/usr/bin/sandbox-exec", "-f", prof_path] + inner
+        cmd = ["/usr/bin/sandbox-exec", "-p", profile] + inner
         nproc_cap = _uid_proc_count() + NPROC_HEADROOM
         emit({"ev": "log", "msg": f"Detonacja ({kind}) w sandboksie, limit {timeout}s…"})
 

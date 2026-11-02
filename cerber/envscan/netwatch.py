@@ -10,7 +10,17 @@ only what is NEW compared with its first snapshot:
   of the environment scan, applied to the new processes only);
 * new autostart entries (LaunchAgents/Daemons, helper tools) and changed shell start-up files;
 * new files in Downloads/Desktop/Shared/tmp (handed to the file scanner as targets);
-* a changed MAC address of the default gateway (ARP spoofing) and large uploads during the session (nettop).
+* a changed MAC address of the default gateway (ARP spoofing) and large uploads during the session (nettop);
+* attacks in progress (envscan.live, existing processes too, re-checked on a budget): remote shells (a shell /
+  interpreter whose stdin/stdout is a TCP connection), browser passwords / cookies, the login keychain, wallet
+  data or a messenger session held open by a program that does not own them, and stealer staging folders /
+  archives appearing in /tmp, /Users/Shared or $TMPDIR (copies of those stores collected for upload).
+
+Every event item carries, besides the classic keys, `confidence` (high = malicious: act; medium; low), `attack`
+(remote_shell, credential_theft, c2, download_exec, injection, masquerade, suspicious_chain, deleted_exe, miner or
+None), `evidence` (short Polish lines), `signals` (names), `target` (the file to quarantine – an untrusted program or
+the script an interpreter runs, never an Apple file or an interpreter), `trust` (provenance tier of `exe`) and
+`ioc` (True for a threat-list address).
 
 Guard mode (``guard=True``, background protection with the "network & remote access" option on, runs for days):
 slower polls, no reverse DNS, Downloads/Desktop/autostart folders are left to the file watch (cerber.watch), files
@@ -42,10 +52,13 @@ from .netaudit import (BENIGN_UPLOADERS, GB, MB, SCRIPT_NAMES, _base, _ioc_looku
                        build_listening, classify_tunnel, exfil_signals, exposure_of, fmt_bytes, format_ioc,
                        is_loopback, is_public_ip, is_shared_ip, match_remote_tool, normalize_ip, odd_location,
                        parse_netstat, parse_nettop, parse_who, script_connection_signals, service_for, signer_label)
+from .files import stealer_archive, stealer_artifacts
+from .live import (LiveSweep, ancestry, culprit_ancestor, event_meta, is_cerber_process, names_from_evidence,
+                   user_temp_dir)
 from .netaudit_deep import TCC_SENSITIVE, TCC_SPY
 from .network import BACKDOOR_PORTS
-from .patterns import classify_path, is_apple_path, redact
-from .provenance import TRUSTED, dev_context, name_signals, origin, origin_signals, quarantine_events
+from .patterns import classify_path, interpreter_of, is_apple_path, redact
+from .provenance import TRUSTED, dev_context, name_signals, origin, origin_signals, quarantine_events, script_of
 from .util import EnvContext, run
 
 LW = "Heur:Env.Live"
@@ -94,6 +107,16 @@ HOUSEKEEP_S = 3600.0
 PERM_S = 300.0
 LOG_KEEP_S = 3600.0                 # unified-log events kept for aggregation (password guessing over an hour)
 LOG_KEEP_MAX = 5000
+# live attack evidence (envscan.live): candidates re-checked every … s, at most … s / probes per poll
+LIVE_RECHECK_S = 30.0
+GUARD_LIVE_RECHECK_S = 90.0
+LIVE_BUDGET_S = 0.3
+GUARD_LIVE_BUDGET_S = 0.15
+LIVE_MAX_PROBES = 80
+GUARD_LIVE_MAX_PROBES = 40
+STAGING_WALKS = (0.0, 8.0, 40.0)    # a new temp folder is searched for copied passwords at these ages (s)
+STAGING_MAX = 300                   # new temp folders followed at once
+STAGING_SKIP = re.compile(r"^(?:cerber-|claude-|com\.apple\.|BlobRegistryFiles-|TemporaryItems$|\.)")
 TCC_USER_DB = "~/Library/Application Support/com.apple.TCC/TCC.db"
 TCC_SYSTEM_DB = "/Library/Application Support/com.apple.TCC/TCC.db"
 
@@ -213,6 +236,18 @@ class NetWatch:
         self.log_raw: list[dict] = []
         self.log_seen: set[tuple] = set()
         self.log_checked: str | None = None
+        # live attack evidence (remote shells, secret stores held open) and stealer staging folders
+        self.cerber_any: dict[int, bool] = {}
+        self.live = LiveSweep(self.home, self._origin, self._ours,
+                              recheck_s=GUARD_LIVE_RECHECK_S if guard else LIVE_RECHECK_S,
+                              budget_s=GUARD_LIVE_BUDGET_S if guard else LIVE_BUDGET_S,
+                              max_probes=GUARD_LIVE_MAX_PROBES if guard else LIVE_MAX_PROBES, prefix=LW,
+                              trust_hint=lambda exe: (self.origin_cache.get(exe) or {}).get("trust"))
+        self.tmpdir = user_temp_dir()
+        self.staging_roots = [self.tmpdir] if self.tmpdir else []
+        self.staging_state: dict[str, set[str]] = {}
+        self.staging_watch: dict[str, dict] = {}       # new temp folder / zip -> {"first", "walks", "strict"}
+        self.staging_done: set[str] = set()
         # reverse DNS of new public peers, off the polling thread (never in guard mode: no network chatter)
         self.hosts: dict[str, str | None] = {}
         self.dns_q: queue.Queue = queue.Queue()
@@ -318,9 +353,28 @@ class NetWatch:
             self.cerber[c] = res
         return res
 
+    def _ours(self, pid: int) -> bool:
+        """Cerber itself – this watch's lineage and any other Cerber process (a scan reads every file)."""
+        return pid == self.me or self._is_cerber(pid) or is_cerber_process(pid, self.procs, self.cerber_any)
+
+    def _auto_target(self, exe: str | None, pid: int | None = None) -> str | None:
+        """The file to quarantine for an event about `exe`: never an Apple file or an interpreter – for an
+        interpreter it is the script the process runs (when it is a file)."""
+        if not exe or not exe.startswith("/"):
+            return None
+        if interpreter_of(exe):
+            sp = script_of((self.procs.get(pid) or {}).get("cmdline")) if pid else None
+            return sp if sp and not is_apple_path(sp) and os.path.isfile(sp) else None
+        return None if is_apple_path(exe) else exe
+
     def _event(self, kind: str, title: str, detail: str, signals: list[Signal] | None = None,
                location: str | None = None, extra: dict | None = None, finding: bool = True,
-               group: str | None = None) -> dict | None:
+               group: str | None = None, names: list[tuple[str, int]] | None = None,
+               attack: str | None = None) -> dict | None:
+        """One event. Besides the classic keys every item carries (additive, for the active defense):
+        confidence high/medium/low (high = malicious: act), attack (remote_shell, credential_theft, c2, …),
+        evidence (short Polish lines), signals (names), target (file to quarantine: an untrusted program or the
+        script – never Apple's files or an interpreter), trust (provenance tier of exe) and ioc (threat-list hit)."""
         if group is not None:                      # e.g. a torrent client: report the first few peers, count the rest
             n = self.group_n.get(group, 0)
             self.group_n[group] = n + 1
@@ -346,17 +400,33 @@ class NetWatch:
         item = {"id": f"ne-{self.n_event}", "time": _now(), "kind": kind, "severity": sev, "score": score,
                 "title": title, "detail": detail, "process": x.get("process"), "pid": x.get("pid"),
                 "exe": x.get("exe"), "remote": x.get("remote"), "host": x.get("host"), "signer": x.get("signer")}
+        meta = event_meta(signals, names)
+        if attack:
+            meta["attack"] = attack
+        target = x["target"] if "target" in x else self._auto_target(x0, x.get("pid"))
+        item.update(meta, target=target, trust=self._trust(x0),
+                    ioc=any(s.name.endswith(".IocConnection") for s in signals or []))
         if sev not in ("info",):
             self.stats["alerts"] += 1
         if finding and signals and score >= 10:
             self.ctx.add_finding("network_live", title, location or f"{kind} {item['time']}", signals,
-                                 {**x, "time": item["time"], "kind": kind})
+                                 {**x, "time": item["time"], "kind": kind, "attack": meta["attack"],
+                                  "confidence": meta["confidence"], "target": target})
         if len(self.events) < MAX_EVENTS:
             self.events.append(item)
         self.emit({"ev": "net_event", "item": item})
-        if x0 and score >= 10 and kind in DIM_OF_KIND:
-            self._correlate(x0, DIM_OF_KIND[kind], score, x)
+        ck = target if ("target" in x or (x0 and interpreter_of(x0))) else x0   # a script, not its interpreter
+        if ck and score >= 10 and kind in DIM_OF_KIND and not interpreter_of(ck):
+            self._correlate(ck, DIM_OF_KIND[kind], score, x)
         return item
+
+    def _trust(self, exe: str | None) -> str | None:
+        if not exe or not exe.startswith("/"):
+            return None
+        try:
+            return self._origin(exe).get("trust")
+        except Exception:  # noqa: BLE001
+            return None
 
     def _correlate(self, exe: str, dim: str, score: int, extra: dict) -> None:
         """Several independent signals about ONE program (origin, its connections, ports, autostart, permissions)
@@ -449,6 +519,7 @@ class NetWatch:
             self._baseline(listening, conns, socks, inbound)
             return
         self._check_processes(new_pids)
+        self._check_live()
         self._check_listening(listening)
         self._check_connections(conns, socks, now)
         self._check_inbound(inbound)
@@ -488,6 +559,8 @@ class NetWatch:
             self.persist_state[d] = self._listdir(d)
         for f in _expand(RC_FILES, self.home):
             self.rc_state[f] = self._rc(f)
+        for d in self.staging_roots:
+            self.staging_state[d] = set(self._listdir(d))
         self.gateway = self._gateway_now()
         self.last_who = self.last_slow = time.time()
         self._start_nettop()
@@ -580,7 +653,120 @@ class NetWatch:
                 continue                    # a shell or a build tool starting is not news in background protection
             sigs = [Signal(f"{LW}.Process", d.score, d.confidence, d.description, list(d.evidence or [])[:5])]
             self._event("process", f"Nowy proces: {f.title}", d.description, sigs, f"pid {pid}" if pid else loc,
-                        {"process": info.get("name"), "pid": info.get("pid"), "exe": info.get("exe")})
+                        {"process": info.get("name"), "pid": info.get("pid"), "exe": info.get("exe")},
+                        names=names_from_evidence(d.evidence))
+
+    # ---- live attack evidence (envscan.live): remote shells, secret stores held open
+
+    def _check_live(self) -> None:
+        try:
+            hits = self.live.run(self.procs)
+        except Exception as exc:  # noqa: BLE001 - never let it break the watch
+            self._limit(f"sprawdzanie aktywnych ataków (zdalne powłoki, dostęp do haseł) nie zadziałało: {exc!r}")
+            return
+        self.stats["live_checked"] = self.live.stats["probed"]
+        for h in hits:
+            exe = h.get("exe")
+            extra = {"process": h.get("name"), "pid": h["pid"], "exe": exe, "target": h.get("target"),
+                     "signer": self._sign(exe)[0] if exe else None}
+            if h.get("peer"):
+                extra["remote"] = h["peer"]
+            self._event("process", h["title"], h["detail"], h["signals"], f"pid {h['pid']}", extra,
+                        attack=h["attack"])
+            if h.get("target"):
+                self._target(h["target"], "program lub skrypt aktywnego ataku", force=True)
+
+    def _stage(self, path: str, strict: bool, now: float) -> None:
+        """Follow a new temp folder / zip for a while: a stealer fills its staging folder over seconds."""
+        if path in self.staging_watch or path in self.staging_done or len(self.staging_watch) >= STAGING_MAX:
+            return
+        if not (path.lower().endswith(".zip") or os.path.isdir(path)) or os.path.islink(path):
+            return
+        self.staging_watch[path] = {"first": now, "walks": 0, "strict": strict}
+
+    def _check_staging(self, now: float) -> None:
+        for d in self.staging_roots:                                  # $TMPDIR: only folder names, no events
+            try:
+                cur = set(os.listdir(d))
+            except OSError:
+                continue
+            old = self.staging_state.get(d)
+            self.staging_state[d] = cur
+            if old is None:
+                continue
+            for name in cur - old:
+                if not STAGING_SKIP.match(name):
+                    self._stage(os.path.join(d, name), True, now)
+        t0 = time.monotonic()
+        home_lib = self.home + "/Library/"
+        for path, st in list(self.staging_watch.items()):
+            if st["walks"] >= len(STAGING_WALKS) or not os.path.lexists(path):
+                self.staging_watch.pop(path, None)
+                continue
+            if now - st["first"] < STAGING_WALKS[st["walks"]] or time.monotonic() - t0 > 0.15:
+                continue
+            st["walks"] += 1
+            label = "folderze tymczasowym użytkownika ($TMPDIR)" if st["strict"] else os.path.dirname(path)
+            if path.lower().endswith(".zip"):
+                hits = stealer_archive(path, st["strict"])
+            else:
+                hits = stealer_artifacts(path, 4, label, home_lib, group_by_root=True, max_entries=1500, zips=True,
+                                         strict=st["strict"])
+            hits = [h for h in hits if h["kind"] != "archive_name"]
+            if hits:
+                self.staging_watch.pop(path, None)
+                self.staging_done.add(path)
+                self._staging_event(hits[0], path)
+
+    def _staging_event(self, hit: dict, path: str) -> None:
+        names = set(hit.get("names") or [])
+        strong = len(names) >= 3 or (bool(names & {"login.keychain-db", "login.keychain"}) and len(names) >= 2)
+        base = hit["signals"][0]
+        archive = hit["kind"] == "archive"
+        sig = Signal(f"{LW}.StealerArchive" if archive else f"{LW}.StealerStaging", 85 if strong else 60,
+                     Confidence.HIGH, base.description + " – pojawiły się przed chwilą (kradzież w toku)",
+                     list(base.evidence)[:8])
+        who = self._who_uses(hit["path"])
+        extra: dict = {"exe": None, "target": hit["path"]}
+        detail = ("skopiowane: " + ", ".join(hit.get("artefacts") or [])[:300]
+                  + " – tak złodziej haseł (stealer) zbiera dane przed wysłaniem")
+        if who:
+            extra.update(process=who.get("name"), pid=who.get("pid"), exe=who.get("exe"),
+                         signer=self._sign(who.get("exe"))[0] if who.get("exe") else None)
+            detail += f"; zbiera je: {who.get('name')} (pid {who.get('pid')})"
+        short = hit["path"].replace(self.home, "~", 1)
+        self._event("file", ("Archiwum ze skradzionymi danymi logowania: " if archive else
+                             "Dane logowania skopiowane do folderu tymczasowego: ") + short,
+                    detail, [sig], hit["path"], extra, attack="credential_theft")
+        self._target(hit["path"], "folder przygotowawczy stealera", force=True)
+
+    def _who_uses(self, path: str) -> dict | None:
+        """Which candidate process works in / has files open in a staging folder (the program to stop)."""
+        try:
+            import psutil
+        except ImportError:
+            return None
+        prefix = path.rstrip("/") + "/"
+        t0 = time.monotonic()
+        for (pid, _ct), st in list(self.live.state.items()):
+            if st.get("skip"):
+                continue
+            if time.monotonic() - t0 > 0.25:
+                break
+            try:
+                p = psutil.Process(pid)
+                cwd = p.cwd() or ""
+                used = (cwd + "/").startswith(prefix) or cwd == path or \
+                    any(f.path == path or f.path.startswith(prefix) for f in p.open_files())
+            except Exception:  # noqa: BLE001
+                continue
+            if not used:
+                continue
+            info = self.procs.get(pid) or {"pid": pid}
+            cul = culprit_ancestor(ancestry(pid, self.procs), self._origin, self.home)
+            return cul[0] if cul and not interpreter_of(info.get("exe") or "") and \
+                is_apple_path(info.get("exe") or "") else info
+        return None
 
     # ---- listening sockets
 
@@ -889,6 +1075,7 @@ class NetWatch:
     # ---- new files
 
     def _check_files(self) -> None:
+        now = time.time()
         for d, old in self.dir_state.items():
             cur = self._listdir(d)
             if cur != old:
@@ -896,8 +1083,11 @@ class NetWatch:
                 for name, meta in cur.items():
                     if name not in old and not is_partial(name):
                         self.pending_files[os.path.join(d, name)] = meta
+                    if name not in old and not name.startswith(("cerber-", "claude-")):
+                        self._stage(os.path.join(d, name), False, now)      # hidden folders included
             if len(self.pending_files) > 5000:
                 self.pending_files.clear()
+        self._check_staging(now)
         # report a file once it stopped growing (seen twice with the same size and time)
         for path, meta in list(self.pending_files.items()):
             d = os.path.dirname(path)
@@ -1152,6 +1342,9 @@ class NetWatch:
         self.alarmed.clear()
         self.exe_dims.clear()
         self.exe_combined.clear()
+        self.cerber_any.clear()
+        if len(self.staging_done) > 5_000:
+            self.staging_done.clear()
         self.targets.clear()
         self.ctx.findings.clear()
         self.events.clear()

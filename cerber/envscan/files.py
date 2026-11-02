@@ -170,18 +170,29 @@ def collect_downloads(ctx: EnvContext) -> None:
 
 
 PROFILE_MARKERS = {"preferences", "secure preferences", "prefs.js", "current session", "last session",
-                   "network persistent state", "times.json", "compatibility.ini"}
+                   "network persistent state", "times.json", "compatibility.ini", "user.js"}
+ARCHIVE_ROOTS = ("/tmp", "/private/tmp", "/private/var/tmp", "/Users/Shared")
 
 
-def _stealer_scan_dir(ctx: EnvContext, root: str, depth: int, label: str, group_by_root: bool = False) -> None:
-    """Group browser/keychain/wallet artefacts by top-level folder below root.
+def _strict_ok(low: set[str]) -> bool:
+    """$TMPDIR is busy (automation browser profiles, importers): only an unmistakable haul counts there."""
+    return (len(low) >= 3 and bool(low & STRONG_STEALER)) or \
+        (bool(low & {"login.keychain-db", "login.keychain"}) and len(low) >= 2)
 
-    Real (automation) browser profiles also contain Cookies/Login Data, so any folder that
-    carries profile bookkeeping files (Preferences, prefs.js, ...) is ignored."""
-    home_lib = (ctx.homes[0].home + "/Library/") if ctx.homes else None
+
+def stealer_artifacts(root: str, depth: int, label: str, home_lib: str | None = None, group_by_root: bool = False,
+                      max_entries: int = 5000, zips: bool | None = None, strict: bool = False) -> list[dict]:
+    """Browser/keychain/wallet artefacts below `root`, grouped by top-level folder, plus stealer archives.
+
+    → [{"kind": "staging"|"archive"|"archive_name", "path", "signals": [Signal], "artefacts": [names]}]
+    Real (automation) browser profiles also contain Cookies/Login Data, so any folder that carries profile
+    bookkeeping files (Preferences, prefs.js, ...) is ignored. `strict` ($TMPDIR): see _strict_ok, no name-only
+    archive hints. Shared by the environment scan and the live watch (netwatch)."""
+    zips = root.startswith(ARCHIVE_ROOTS) or strict if zips is None else zips
+    out: list[dict] = []
     hits: dict[str, list[str]] = {}
     profile_dirs: set[str] = set()
-    for path, is_dir in _walk(root, depth, 5000):
+    for path, is_dir in _walk(root, depth, max_entries):
         n = os.path.basename(path).lower()
         parent = os.path.dirname(path)
         if n in PROFILE_MARKERS:
@@ -190,41 +201,61 @@ def _stealer_scan_dir(ctx: EnvContext, root: str, depth: int, label: str, group_
             rel = os.path.relpath(path, root)
             group = root if (group_by_root or os.sep not in rel) else os.path.join(root, rel.split(os.sep, 1)[0])
             hits.setdefault(group, []).append(path)
-        if not is_dir and n.endswith(".zip") and root.startswith(("/tmp", "/private/tmp", "/private/var/tmp", "/Users/Shared")):
-            names: list[str] = []
-            try:
-                if os.path.getsize(path) < (300 << 20):
-                    with zipfile.ZipFile(path) as z:
-                        names = [os.path.basename(i.filename.rstrip("/")).lower() for i in z.infolist()[:20000]]
-            except (OSError, zipfile.BadZipFile, RuntimeError, ValueError):
-                names = []
-            found = sorted(set(names) & STEALER_NAMES)
-            has_profile = bool(set(names) & PROFILE_MARKERS)
-            sigs = []
-            if not has_profile and (len(found) >= 2 or set(found) & STRONG_STEALER):
-                sigs.append(Signal(f"{ST}.Archive", 60, Confidence.HIGH,
-                                   "archiwum w folderze tymczasowym zawiera dane przeglądarki/pęku kluczy/portfeli (pakiet exfiltracji stealera)",
-                                   found[:8]))
-            elif n in STAGING_ARCHIVE_NAMES:
-                sigs.append(Signal(f"{ST}.ArchiveName", 10, Confidence.LOW,
-                                   "nazwa archiwum używana przez stealery macOS do exfiltracji", [path]))
-            if sigs:
-                ctx.add_target(path, "possible stealer archive", 2)
-                ctx.add_finding("files", f"Możliwe archiwum stealera {os.path.basename(path)}", path, sigs,
-                                {"members": found})
+        if not is_dir and n.endswith(".zip") and zips:
+            out += stealer_archive(path, strict)
     for group, paths in hits.items():
         paths = [p for p in paths if os.path.dirname(p) not in profile_dirs]
         if not paths:
             continue
         low = {os.path.basename(p).lower() for p in paths}
         strong = low & STRONG_STEALER
-        if len(low) >= 2 or strong:
+        if (len(low) >= 2 or strong) and (not strict or _strict_ok(low)):
             score = 60 if (len(low) >= 3 or ("login.keychain-db" in low and len(low) >= 2)) else 45
             rels = sorted({os.path.relpath(p, group) for p in paths})[:8]
             sig = Signal(f"{ST}.Staging", score, Confidence.HIGH,
                          f"kopie danych przeglądarki/pęku kluczy/portfeli w {label} (folder przygotowawczy stealera)", rels)
-            ctx.add_target(group, "possible stealer staging folder", 2)
-            ctx.add_finding("files", f"Możliwy folder przygotowawczy stealera {group}", group, [sig], {"artefacts": rels})
+            out.append({"kind": "staging", "path": group, "signals": [sig], "artefacts": rels,
+                        "names": sorted(low)})
+    return out
+
+
+def stealer_archive(path: str, strict: bool = False) -> list[dict]:
+    """A zip in a temp folder carrying copied browser/keychain/wallet stores (see stealer_artifacts)."""
+    n = os.path.basename(path).lower()
+    names: list[str] = []
+    try:
+        if os.path.getsize(path) < (300 << 20):
+            with zipfile.ZipFile(path) as z:
+                names = [os.path.basename(i.filename.rstrip("/")).lower() for i in z.infolist()[:20000]]
+    except (OSError, zipfile.BadZipFile, RuntimeError, ValueError):
+        names = []
+    found = sorted(set(names) & STEALER_NAMES)
+    has_profile = bool(set(names) & PROFILE_MARKERS)
+    if not has_profile and (len(found) >= 2 or set(found) & STRONG_STEALER) and (not strict or _strict_ok(set(found))):
+        return [{"kind": "archive", "path": path, "artefacts": found[:8], "names": found,
+                 "signals": [Signal(f"{ST}.Archive", 60, Confidence.HIGH,
+                                    "archiwum w folderze tymczasowym zawiera dane przeglądarki/pęku kluczy/portfeli "
+                                    "(pakiet exfiltracji stealera)", found[:8])]}]
+    if n in STAGING_ARCHIVE_NAMES and not strict:
+        return [{"kind": "archive_name", "path": path, "artefacts": [], "names": [],
+                 "signals": [Signal(f"{ST}.ArchiveName", 10, Confidence.LOW,
+                                    "nazwa archiwum używana przez stealery macOS do exfiltracji", [path])]}]
+    return []
+
+
+def _stealer_scan_dir(ctx: EnvContext, root: str, depth: int, label: str, group_by_root: bool = False,
+                      strict: bool = False) -> None:
+    home_lib = (ctx.homes[0].home + "/Library/") if ctx.homes else None
+    for hit in stealer_artifacts(root, depth, label, home_lib, group_by_root, strict=strict):
+        path = hit["path"]
+        if hit["kind"] == "staging":
+            ctx.add_target(path, "possible stealer staging folder", 2)
+            ctx.add_finding("files", f"Możliwy folder przygotowawczy stealera {path}", path, hit["signals"],
+                            {"artefacts": hit["artefacts"]})
+        else:
+            ctx.add_target(path, "possible stealer archive", 2)
+            ctx.add_finding("files", f"Możliwe archiwum stealera {os.path.basename(path)}", path, hit["signals"],
+                            {"members": hit["artefacts"]})
 
 
 def collect_staging(ctx: EnvContext) -> None:
@@ -232,6 +263,10 @@ def collect_staging(ctx: EnvContext) -> None:
     for root, label in (("/private/tmp", "/tmp"), ("/private/var/tmp", "/var/tmp"), ("/Users/Shared", "/Users/Shared")):
         if os.path.isdir(root):
             _stealer_scan_dir(ctx, root, 3, label)
+    from .live import user_temp_dir
+    tmpdir = user_temp_dir()
+    if tmpdir:                                  # mktemp -d / tempfile / os.MkdirTemp land here on macOS
+        _stealer_scan_dir(ctx, tmpdir, 3, "folderze tymczasowym użytkownika ($TMPDIR)", strict=True)
     hidden_inv = ctx.inv("hidden_home_dirs")
     for h in ctx.homes:
         names, _ = safe_listdir(h.home)

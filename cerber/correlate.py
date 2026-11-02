@@ -37,6 +37,9 @@ _EV_RX = re.compile(r"^(\S+) \[\+(-?\d+)\]")
 _ORIGIN_SIG = re.compile(r"\.(?:Name\.|DownloadedUnsigned|FromMessenger|Fresh|BrokenSignature|DeletedWhileRunning)")
 BACKDOOR_HINT = {4444, 4445, 1337, 31337, 6666, 6667, 6697, 5555, 9001, 9050, 1080, 3333, 14444, 45700}
 MAX_CASES = 60
+# attack-in-progress evidence (envscan.live): like an IOC hit, one such dimension is enough for a case
+_LIVE_SIG = re.compile(r"\.(?:RemoteShell|SocketStdio|SecretAccess(?:\.\w+)?|StealerStaging|StealerArchive)$")
+LIVE_ATTACKS = ("remote_shell", "credential_theft")
 
 
 def _unit_key(path: str) -> str:
@@ -80,6 +83,7 @@ class Unit:
         self.listening: list[str] = []
         self.persistence: list[str] = []
         self.ioc = False
+        self.live = False             # an attack seen in progress (remote shell, secret stores held open)
 
     def add(self, dim: str, score: float, reason: str, combine: str = "max") -> None:
         if score <= 0:
@@ -106,7 +110,8 @@ class Unit:
         ranked = sorted(dims.values(), reverse=True)
         total = min(100, ranked[0] + 0.5 * sum(v for v in ranked[1:] if v >= 10))
         strong = [d for d, v in dims.items() if v >= 15]
-        if (total >= 80 and len(strong) >= 2) or dims["file"] >= 80 or (self.ioc and dims["network"] >= 60):
+        if (total >= 80 and len(strong) >= 2) or dims["file"] >= 80 or (self.ioc and dims["network"] >= 60) or \
+                (self.live and dims["process"] >= 80):
             sev = "malicious"
         elif total >= 35:
             sev = "suspicious"
@@ -159,14 +164,22 @@ def correlate(env_raw: dict | None, network: dict | None, results: list[dict], h
         cat, det = f.get("category"), (f.get("details") or {})
         exe = det.get("exe") or (f.get("location") if str(f.get("location", "")).startswith("/") else None)
         pid = det.get("pid")
+        if "target" in det:                       # live evidence names its culprit file (a script, not python)
+            if not det["target"]:
+                continue
+            exe, pid = det["target"], None
         u = (unit_for(exe, create=False) if exe else None) or (pid_unit.get(pid) if pid else None)
         if cat == "process":
             if u is None and exe:
                 u = unit_for(exe)
             if u is None:
                 continue
-            score = sum(sc for name, sc in _signal_parts(f) if not _ORIGIN_SIG.search(name) and sc > 0)
+            parts = _signal_parts(f)
+            score = sum(sc for name, sc in parts if not _ORIGIN_SIG.search(name) and sc > 0)
             u.add("process", score, f.get("title") or "")
+            if any(_LIVE_SIG.search(n) and sc >= 80 for n, sc in parts) or \
+                    (det.get("attack") in LIVE_ATTACKS and det.get("confidence") == "high"):
+                u.live = True
         elif cat in ("network", "network_live", "netaudit", "remote", "traffic") and u is not None:
             score = (f.get("detection") or {}).get("score") or 0
             if any("Ioc" in n for n, _ in _signal_parts(f)):
@@ -228,11 +241,17 @@ def correlate(env_raw: dict | None, network: dict | None, results: list[dict], h
         if u is not None and (t.get("bytes_out") or 0) >= 50 << 20 and (t.get("bytes_out") or 0) > (t.get("bytes_in") or 0):
             u.add("network", 25, f"wysłał {round(t['bytes_out'] / (1 << 20))} MB (więcej niż pobrał)")
     for ev in ((net.get("monitor") or {}).get("events") or []):
-        u = unit_for(ev.get("exe"), create=False)
+        if ev.get("kind") == "file":            # a stealer's staging folder: the program collecting (if known)
+            key = ev.get("exe")
+        else:
+            key = ev["target"] if "target" in ev else ev.get("exe")
+        u = unit_for(key, create=ev.get("attack") in LIVE_ATTACKS and ev.get("confidence") == "high")
         if u is not None and ev.get("severity") not in ("info", None):
-            if "zagrożeń" in (ev.get("title") or ""):
+            if ev.get("ioc") or "zagrożeń" in (ev.get("title") or ""):
                 u.ioc = True
-            dim = "persistence" if ev.get("kind") == "autostart" else "process" if ev.get("kind") == "process" \
+            if ev.get("attack") in LIVE_ATTACKS and ev.get("confidence") == "high":
+                u.live = True
+            dim = "persistence" if ev.get("kind") == "autostart" else "process" if ev.get("kind") in ("process", "file") \
                 else "network"
             u.add(dim, ev.get("score") or 0, ev.get("title") or "")
 
@@ -278,7 +297,7 @@ def correlate(env_raw: dict | None, network: dict | None, results: list[dict], h
     cases, findings_raw, findings, escalate = [], [], [], []
     for u in units.values():
         j = u.judged()
-        if j["severity"] == "info" or (len(j["strong"]) < 2 and not _package_effect(u) and not u.ioc):
+        if j["severity"] == "info" or (len(j["strong"]) < 2 and not _package_effect(u) and not u.ioc and not u.live):
             continue
         if u.trust in TRUSTED and not u.ioc and j["dims"]["file"] < 80:
             continue

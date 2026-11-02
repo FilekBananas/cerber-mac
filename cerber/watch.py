@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import math
 import os
 import plistlib
 import queue
@@ -115,15 +116,26 @@ class Notifier:
             return
         if not self.enabled:
             return
-        script = f"display notification {_as(msg[:230])} with title {_as(title)}"
+        # file and process names reach these texts: they are passed as `argv` items, never spliced into the
+        # AppleScript source (no quoting to get wrong, no `" & do shell script "…` possible)
+        line = "display notification (item 1 of argv) with title (item 2 of argv)"
+        args = [msg[:230], title[:120]]
         if subtitle:
-            script += f" subtitle {_as(subtitle[:120])}"
+            line += " subtitle (item 3 of argv)"
+            args.append(subtitle[:120])
         if sound:
-            script += f" sound name {_as(sound)}"
+            line += f" sound name (item {len(args) + 1} of argv)"
+            args.append(sound[:40])
         try:
-            subprocess.Popen(["osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError:
+            subprocess.Popen(self._osascript(line, args), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             stdin=subprocess.DEVNULL, env={"PATH": "/usr/bin:/bin"})
+        except (OSError, ValueError):
             pass
+
+    @staticmethod
+    def _osascript(line: str, args: list[str]) -> list[str]:
+        clean = [str(a).replace("\x00", "") for a in args]
+        return ["/usr/bin/osascript", "-e", "on run argv", "-e", line, "-e", "end run", "--", *clean]
 
     def alert(self, title: str, msg: str, report: str | None) -> None:
         """Modal alert for confirmed malware; 'Pokaż raport' opens the HTML report."""
@@ -134,14 +146,17 @@ class Notifier:
             return
 
         def run() -> None:
-            buttons = '{"OK", "Pokaż raport"}' if report else '{"OK"}'
-            script = (f"display alert {_as(title)} message {_as(msg[:900])} as critical buttons {buttons} "
-                      f"default button \"OK\" giving up after 900")
+            ok = report if (isinstance(report, str) and report.startswith("/") and report.endswith(".html")
+                            and os.path.isfile(report)) else None
+            buttons = '{"OK", "Pokaż raport"}' if ok else '{"OK"}'
+            line = (f"display alert (item 1 of argv) message (item 2 of argv) as critical buttons {buttons} "
+                    f"default button \"OK\" giving up after 900")
             try:
-                r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=1000)
-                if report and "Pokaż raport" in r.stdout:
-                    subprocess.run(["open", report], timeout=30)
-            except (OSError, subprocess.SubprocessError):
+                r = subprocess.run(self._osascript(line, [title[:200], msg[:900]]), capture_output=True, text=True,
+                                   timeout=1000, stdin=subprocess.DEVNULL, env={"PATH": "/usr/bin:/bin"})
+                if ok and "Pokaż raport" in r.stdout:
+                    subprocess.run(["/usr/bin/open", ok], timeout=30, stdin=subprocess.DEVNULL)
+            except (OSError, ValueError, subprocess.SubprocessError):
                 pass
         threading.Thread(target=run, daemon=True).start()
 
@@ -328,21 +343,23 @@ class WorkerClient:
         return self.proc is not None and self.proc.poll() is None
 
     def _start(self) -> None:
-        from .sandbox import _limits, build_profile, new_workspace, workspace_noexec
+        from .sandbox import _limits, build_profile, new_workspace, python_env, workspace_noexec
         _log("Uruchamiam proces skanujący w sandboksie (ładowanie baz sygnatur) …")
         app_event({"ev": "watch_worker", "state": "loading"})
         self.ready = False
         self.work = new_workspace()
-        prof = os.path.join(self.work, "sandbox-scan.sb")
-        with open(prof, "w") as fh:
-            fh.write(build_profile(self.work, None, "scan"))
+        profile = build_profile(self.work, None, "scan")
+        with open(os.path.join(self.work, "sandbox-scan.sb"), "w") as fh:
+            fh.write(profile)
+        # same interpreter hardening as sandbox.run_inner: sys.path without the project root, no user site, .pyc
+        # only from the sealed tree; the profile travels inline (-p) – the copy above is for reference only
+        # (anything running as the user can write to the workspace before sandbox-exec would read a file)
         env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": os.path.join(self.work, "home"),
-               "TMPDIR": os.path.join(self.work, "tmp"), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
-               "PYTHONUNBUFFERED": "1", "PYTHONPATH": config.ROOT, "LANG": "pl_PL.UTF-8",
+               "TMPDIR": os.path.join(self.work, "tmp"), **python_env(), "LANG": "pl_PL.UTF-8",
                "CERBER_HOME": config.HOME, "CERBER_DISABLE_TOOLS": "hdiutil", "CERBER_SANDBOX": "scan",
                "CERBER_REAL_HOME": os.path.expanduser("~"), "CERBER_WORK": self.work,
                "CERBER_NOEXEC": "1" if workspace_noexec(self.work) else "0"}
-        cmd = ["/usr/bin/sandbox-exec", "-f", prof, os.path.join(config.ROOT, ".venv", "bin", "python"),
+        cmd = ["/usr/bin/sandbox-exec", "-p", profile, os.path.join(config.ROOT, ".venv", "bin", "python"),
                "-m", "cerber", "watch", "run", "--worker-mode"] + self.args
         self.proc = subprocess.Popen(cmd, cwd=self.work, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=None, text=True, bufsize=1, preexec_fn=_limits)
@@ -351,9 +368,12 @@ class WorkerClient:
         def reader() -> None:
             for line in proc.stdout:
                 try:
-                    self.results.put(json.loads(line))
-                except ValueError:
+                    msg = json.loads(line)
+                except (ValueError, RecursionError):
                     _log(f"worker: {line.rstrip()[:300]}")
+                    continue
+                if isinstance(msg, dict) and "eof" not in msg:      # end of stream is the parent's own marker
+                    self.results.put(msg)
             self.results.put({"eof": True, "rc": proc.wait(), "pid": proc.pid})
         threading.Thread(target=reader, daemon=True).start()
 
@@ -472,7 +492,10 @@ NET_STATUS_EVERY = 30.0
 NET_ALARM = ("suspicious", "pua", "malicious")
 NET_SEVERITIES = ("info", "low", "suspicious", "pua", "malicious")
 NET_ITEM_KEYS = ("id", "time", "kind", "severity", "score", "title", "detail", "process", "pid", "exe", "remote",
-                 "host", "signer")
+                 "host", "signer", "target")
+NET_ITEM_TAGS = ("confidence", "attack", "trust")                  # short machine-readable words
+NET_ITEM_LISTS = {"evidence": (8, 300), "signals": (12, 120)}     # key -> (max items, max chars per item)
+NET_CONFIDENCE = ("high", "medium", "low")
 NET_STAT_KEYS = ("polls", "connections_new", "public_new", "listening_new", "inbound", "sessions_new",
                  "processes_remote", "uploaded_bytes", "alerts")
 
@@ -488,18 +511,29 @@ def clean_net_item(item: dict) -> dict:
     for k in NET_ITEM_KEYS:
         v = item.get(k)
         if k in ("score", "pid"):
-            out[k] = int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+            out[k] = int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) \
+                else None
         else:
             out[k] = str(v)[:600] if v is not None else None
+    for k in NET_ITEM_TAGS:
+        v = item.get(k)
+        out[k] = v[:40] if isinstance(v, str) and v.isascii() and v.replace("_", "").isalnum() else None
+    for k, (n, size) in NET_ITEM_LISTS.items():
+        v = item.get(k)
+        out[k] = [x[:size] for x in v[:n] if isinstance(x, str) and x] if isinstance(v, list) else []
+    out["ioc"] = item.get("ioc") is True
     if out["severity"] not in NET_SEVERITIES:
         out["severity"] = "info"
+    if out["confidence"] not in NET_CONFIDENCE:
+        out["confidence"] = None
     out["date"] = time.strftime("%Y-%m-%d")
     return out
 
 
 def clean_net_status(ev: dict) -> dict:
     st: dict = {k: int(ev[k]) for k in NET_STAT_KEYS
-                if isinstance(ev.get(k), (int, float)) and not isinstance(ev.get(k), bool)}
+                if isinstance(ev.get(k), (int, float)) and not isinstance(ev.get(k), bool)
+                and math.isfinite(ev[k])}
     for k in ("since", "log_checked"):
         if isinstance(ev.get(k), str):
             st[k] = ev[k][:40]

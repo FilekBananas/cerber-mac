@@ -391,10 +391,19 @@ def parse_misp_csv(text: str, threat: str) -> list[tuple[str, str, str]]:
 
 # ------------------------------------------------------------------ download / cache
 
+MAX_DOWNLOAD = 1 << 30
+
+
 def _get(url: str, timeout: int = 120) -> bytes:
+    # https only: bundle URLs come from a downloaded index (urlopen would also accept file:// or ftp://)
+    if not url.lower().startswith("https://"):
+        raise ValueError(f"odrzucono adres spoza https: {url[:120]}")
     req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+        data = r.read(MAX_DOWNLOAD + 1)
+    if len(data) > MAX_DOWNLOAD:
+        raise ValueError(f"plik większy niż {MAX_DOWNLOAD >> 20} MB: {url[:120]}")
+    return data
 
 
 def _cached(url: str, name: str, max_age_h: float, log: Log, offline: bool = False) -> str:

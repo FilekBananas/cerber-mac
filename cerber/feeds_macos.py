@@ -53,10 +53,18 @@ def _digest(h: str) -> bytes | None:
     return None
 
 
+MAX_DOWNLOAD = 1 << 30
+
+
 def _get(url: str, headers: dict | None = None, data: bytes | None = None, timeout: int = 120) -> bytes:
+    if not url.lower().startswith("https://"):           # urlopen would also accept file:// or ftp://
+        raise ValueError(f"odrzucono adres spoza https: {url[:120]}")
     h = {"User-Agent": config.USER_AGENT, **(headers or {})}
     with urllib.request.urlopen(urllib.request.Request(url, headers=h, data=data), timeout=timeout) as r:
-        return r.read()
+        body = r.read(MAX_DOWNLOAD + 1)
+    if len(body) > MAX_DOWNLOAD:
+        raise ValueError(f"plik większy niż {MAX_DOWNLOAD >> 20} MB: {url[:120]}")
+    return body
 
 
 def _cached(url: str, name: str, max_age_h: float, log: Log) -> str:

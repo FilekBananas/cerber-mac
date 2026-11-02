@@ -9,6 +9,11 @@ Output directory layout (db/compiled/clamav/):
     ac_<target>_<cs|ci>.pkl   (anchor keys, group ids) for the Rust Aho-Corasick prefilter
 Hash-type signatures (.hdb/.hsb/.mdb/.msb/.fp/.sfp …) go to the shared hash
 database (see cerber/engines/hashdb.py) through `iter_hash_sigs()`.
+
+The .pkl files are read back only through `load_pickle()`: a restricted unpickler that knows nothing but
+plain containers and array.array (which pickles itself through array._array_reconstructor). Cerber runs
+with Full Disk Access, so a swapped .pkl must never be able to import or call anything else (os.system,
+builtins.eval, any class). Adding a new object type to `save()` means adding it to PICKLE_GLOBALS.
 """
 from __future__ import annotations
 
@@ -46,6 +51,36 @@ CONTAINERS = {
     "CL_TYPE_CPIO_ODC": ("cpio",), "CL_TYPE_CPIO_NEWC": ("cpio",), "CL_TYPE_SWF": ("swf",),
     "CL_TYPE_ANY": None,
 }
+
+# the only globals a compiled database may reference (protocol 5 writes tuples, lists, dicts, str, bytes,
+# bytearray, int and None with dedicated opcodes; set/frozenset/bytearray stay callable for older protocols)
+PICKLE_GLOBALS = {
+    ("array", "array"): array.array,
+    ("array", "_array_reconstructor"): array._array_reconstructor,
+    ("builtins", "set"): set,
+    ("builtins", "frozenset"): frozenset,
+    ("builtins", "bytearray"): bytearray,
+}
+
+
+class DBUnpickler(pickle.Unpickler):
+    """Unpickler for db/compiled/clamav/*.pkl – refuses every global outside PICKLE_GLOBALS (the C unpickler
+    routes GLOBAL, STACK_GLOBAL, INST, OBJ and EXT* through find_class) and every persistent id."""
+
+    def find_class(self, module: str, name: str):
+        obj = PICKLE_GLOBALS.get((module, name))
+        if obj is None:
+            raise pickle.UnpicklingError(f"baza ClamAV zawiera niedozwolony obiekt {module[:60]}.{name[:60]} – "
+                                         "odrzucono (plik w db/compiled podmieniony albo uszkodzony)")
+        return obj
+
+    def persistent_load(self, pid):
+        raise pickle.UnpicklingError("baza ClamAV zawiera odwołanie zewnętrzne (persistent id) – odrzucono")
+
+
+def load_pickle(fh) -> object:
+    """Read one compiled-database pickle from the binary file `fh` (see DBUnpickler)."""
+    return DBUnpickler(fh).load()
 
 
 # --------------------------------------------------------------------------- input

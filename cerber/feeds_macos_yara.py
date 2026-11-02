@@ -181,10 +181,18 @@ def select_rules(files: list[tuple[str, str]], tag: str, seen: set[str], all_rul
     return text, stats
 
 
+MAX_DOWNLOAD = 1 << 30
+
+
 def _http(url: str, timeout: int = 120) -> bytes:
+    if not url.lower().startswith("https://"):           # urlopen would also accept file:// or ftp://
+        raise ValueError(f"odrzucono adres spoza https: {url[:120]}")
     req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT, "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+        data = r.read(MAX_DOWNLOAD + 1)
+    if len(data) > MAX_DOWNLOAD:
+        raise ValueError(f"plik większy niż {MAX_DOWNLOAD >> 20} MB: {url[:120]}")
+    return data
 
 
 def _is_rule_file(path: str) -> bool:

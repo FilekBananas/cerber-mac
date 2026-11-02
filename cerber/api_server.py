@@ -50,7 +50,8 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+REPORTS = os.path.join(os.environ.get("CERBER_HOME", ROOT), "reports")      # same as cerber/config.py
 
 DEFAULT_PORT = 8765
 PORT_TRIES = 10                     # the requested port, then the next 10
@@ -1316,10 +1317,18 @@ class Handler(BaseHTTPRequestHandler):
         as_json = (self.query.get("format") or ["html"])[-1].lower() == "json"
         key, ext = ("report_json", ".json") if as_json else ("report_html", ".html")
         path = src.get(key)
-        if not isinstance(path, str) or not path or not path.endswith(ext):
+        if not isinstance(path, str) or not path or not path.endswith(ext) or "\x00" in path:
             raise ApiError(404, "Ten skan nie zapisał raportu.")
+        # only Cerber's own reports folder: a history entry or event naming another file (e.g. a planted
+        # report JSON pointing at a private file) must not turn the API into a file reader
+        real = os.path.realpath(path)
+        bases = [os.path.realpath(REPORTS)]
+        if os.environ.get("CERBER_API_BACKEND"):          # test/dev backend (app/mock_backend.py writes here)
+            bases.append(os.path.realpath(os.path.join(tempfile.gettempdir(), "cerber-mock-reports")))
+        if not any(real.startswith(b + os.sep) for b in bases):
+            raise ApiError(404, "Raport spoza katalogu raportów Cerbera – odmowa.")
         try:
-            fh = open(path, "rb")  # noqa: SIM115
+            fh = os.fdopen(os.open(real, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC), "rb")
         except OSError:
             raise ApiError(404, "Plik raportu nie istnieje (mógł zostać usunięty).") from None
         with fh:

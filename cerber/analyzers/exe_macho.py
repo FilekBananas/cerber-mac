@@ -16,6 +16,7 @@ Detections (engine "heuristic"):
     Heur:MachO.Entitlement.GetTaskAllow             1/3  3 on a Developer-ID signed (release) binary
     Heur:MachO.Entitlement.Debugger                   2
     Heur:MachO.Entitlement.DisableExecPageProtection  3
+    Heur:MachO.AppleCodeMasquerade          15/25  signing identifier claims com.apple.* but code is not Apple-signed
     Heur:MachO.Entitlement.PrivateApple              20  com.apple.private.* on a non-Apple, non-App-Store binary
                                                   (Apple code = "Software Signing" CMS chain, or ad-hoc com.apple.*
                                                   code built for an Apple device OS: trust-cache signed, e.g. the
@@ -473,6 +474,15 @@ class MachOAnalyzer(Analyzer):
                                 [sig.get("error", "")]))
         if ents:
             self._entitlements(obj, ctx, ents, sig, apple)
+        # Apple masquerade: the code-signing identifier claims Apple ownership (com.apple.*) but the code is
+        # not Apple-signed and is not a Mac App Store app (Apple's own App Store titles). Stealers/adware name
+        # their binaries com.apple.* to blend in. Not applied to Apple's own code / trust-cache device code.
+        ident = sig.get("identifier") or ""
+        if ident.startswith("com.apple.") and not apple and state != "app-store":
+            strong = state in ("unsigned", "adhoc", "linker-signed", "invalid")
+            ctx.detect(obj, det("Heur:MachO.AppleCodeMasquerade", Confidence.MEDIUM, 25 if strong else 15,
+                                "Code-signing identifier claims Apple (com.apple.*) but the binary is not Apple-signed",
+                                [f"identifier={ident}", f"state={state}", f"team_id={sig.get('team_id')}"]))
 
         # ---- dylibs / rpaths / dyld env ----------------------------------------------------
         bad = []

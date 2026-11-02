@@ -1014,6 +1014,14 @@ struct NetEvent: Identifiable, Sendable, Equatable {
     var remote: String?
     var host: String?
     var signer: String?
+    // runtime detection (optional – older events and reports lack them)
+    var confidence: String?          // high | medium | low
+    var attack: String?              // remote_shell, credential_theft, c2, …
+    var evidence: [String]           // short Polish lines, strongest first
+    var signals: [String]
+    var targetPath: String?          // the file to quarantine (an untrusted program or the script an interpreter runs)
+    var trust: String?
+    var ioc: Bool                    // the remote address is on a threat list
 
     init(_ j: JSONValue) {
         time = j["time"].text
@@ -1027,11 +1035,29 @@ struct NetEvent: Identifiable, Sendable, Equatable {
         remote = j["remote"].text
         host = j["host"].text
         signer = j["signer"].text
+        confidence = j["confidence"].text?.lowercased()
+        attack = j["attack"].text
+        evidence = Array(j["evidence"].stringArray.prefix(8))
+        signals = Array(j["signals"].stringArray.prefix(12))
+        targetPath = j["target"].text
+        trust = j["trust"].text
+        ioc = j["ioc"].bool ?? false
         id = j["id"].text ?? "ne|\(time ?? "")|\(title)"
     }
 
     /// Counted as an alert (also reported as a `network_live` environment finding).
     var isAlert: Bool { severity.rank >= Severity.low.rank }
+
+    /// "Pewność: wysoka" – only for alerts (every harmless event would otherwise say "niska").
+    var confidenceLabel: String? {
+        guard isAlert else { return nil }
+        switch confidence {
+        case "high": return "Pewność: wysoka"
+        case "medium": return "Pewność: średnia"
+        case "low": return "Pewność: niska"
+        default: return nil
+        }
+    }
 }
 
 /// A public connection that did not exist when the monitor started.

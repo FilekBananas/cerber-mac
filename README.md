@@ -19,8 +19,8 @@ go do ostatniej warstwy i porównać każdą warstwę z milionami wzorców.
 
 ## Aplikacja (Cerber.app)
 
-`app/build.sh` buduje natywną aplikację `Cerber.app` (SwiftUI). Uruchamiasz ją ręcznie – nic nie działa w tle
-i nic nie startuje z systemem. Tryby:
+`app/build.sh` buduje natywną aplikację `Cerber.app` (SwiftUI) z **pieczęcią integralności** backendu (patrz niżej).
+Uruchamiasz ją ręcznie – nic nie działa w tle i nic nie startuje z systemem. Tryby:
 
 | Tryb | Co robi |
 |---|---|
@@ -72,7 +72,51 @@ Dodatkowe warstwy (gdyby sam sandbox macOS miał lukę):
 3. w każdym profilu zablokowane: prośby o uprawnienia, AppleEvents, schowek, WindowServer, kamera/mikrofon/lokalizacja, kontakty/kalendarz/zdjęcia, okna autoryzacji, pęk kluczy, rejestrowanie zadań launchd;
 4. „strażnik” Pythona (audit hook) w procesie skanującym blokuje nieoczekiwane uruchamianie programów, połączenia i ładowanie bibliotek;
 5. limity zasobów (czas CPU, rozmiar pliku, deskryptory, brak zrzutów pamięci), osobna sesja procesów, wszystkie procesy powstałe w sandboksie są śledzone i zabijane po zakończeniu;
-6. proces nadrzędny traktuje wszystko z sandboksa jako niezaufane dane (limit rozmiaru zdarzeń, kwarantanna tylko dla plików ze skanowanych lokalizacji).
+6. proces nadrzędny traktuje wszystko z sandboksa jako niezaufane dane: limit rozmiaru zdarzeń, do aplikacji trafiają tylko zdarzenia z listy dozwolonych (log, etap, postęp, znalezisko, błąd, naruszenie sandboksa; z monitora sieci – oczyszczone zdarzenia sieciowe), ścieżki raportów tylko z folderu `reports/`, kwarantanna tylko dla plików ze skanowanych lokalizacji.
+
+### Pieczęć integralności (Cerber.app)
+
+Cerber.app ma **Pełny dostęp do dysku** i przekazuje go każdemu procesowi, który uruchamia – a backend to zwykły Python
+w folderach, do których może pisać każdy program działający na Twoim koncie. Gdyby ktoś podmienił jeden plik, dostałby
+cały dysk. Dlatego `app/build.sh` „pieczętuje” backend (`cerber/integrity.py`):
+
+* prekompiluje pliki `.pyc` do wnętrza aplikacji (`Contents/Resources/pycache`) – backend nie czyta ich z folderów
+  `__pycache__`, a katalogu projektu nie ma na ścieżce importu (`.venv/cerber-path` zawiera tylko dowiązanie do `cerber/`);
+* zapisuje manifest (`Contents/Resources/backend.manifest`) z SHA-256 każdego pliku, który backend uruchamia albo wczytuje:
+  `cerber/`, `rules/`, `.venv`, interpreter Pythona z biblioteką standardową i bibliotekami z Homebrew, narzędzia
+  (7-Zip, UPX, llama-server, libimobiledevice), `app/mock_backend.py` i bazy `db/compiled/clamav/*.pkl` oraz
+  `db/compiled/yara.bin` (wczytanie podmienionej bazy jest tak samo groźne jak podmieniony kod);
+* skrót manifestu wkompilowuje w plik wykonywalny (sekcja `__TEXT,__cerber_seal`), więc obejmuje go podpis aplikacji.
+
+Przed uruchomieniem każdego procesu Pythona aplikacja liczy manifest od nowa. Przy jakiejkolwiek różnicy **nie uruchamia
+silnika** i pokazuje okno „Cerber zablokował uruchomienie swojego silnika” z listą zmienionych plików. Bazy SQLite
+(hashe, IOC) to dane, nie kod – nie są pieczętowane; bazy ClamAV wczytuje dodatkowo ograniczony unpickler, który zna
+tylko listy, krotki, słowniki i tablice liczb – nigdy kod.
+
+* **Po `./cerber.sh update`** zmieniają się bazy w `db/compiled` (sygnatury ClamAV, skompilowane reguły YARA). Przy
+  następnym skanie aplikacja pokaże okno z listą zmian („w tym bazy sygnatur: N”) i przyciskiem **Zatwierdź obecny stan…** –
+  macOS poprosi o **hasło administratora**. Nowy skrót trafia do pliku należącego do roota
+  (`/Library/Application Support/Cerber/backend.seal`, ważnego tylko dla tej kompilacji aplikacji), a manifest do
+  `~/Library/Application Support/Cerber/backend.manifest` – malware działające na Twoim koncie nie podrobi takiego
+  zatwierdzenia. Zatwierdzaj tylko zmiany, które zrobiłeś sam (aktualizacja baz, edycja kodu, `pip install`). Jeśli niczego
+  nie zmieniałeś, **nie zatwierdzaj**: przeskanuj komputer i przebuduj aplikację. Przebudowa (`app/build.sh`) zamiast
+  zatwierdzania też jest w porządku.
+* **`brew upgrade`** Pythona (`python@3.14`) albo którejkolwiek z pieczętowanych paczek Homebrew – bibliotek, z których
+  korzysta Python (`openssl@3`, `xz`, `zstd`, `sqlite`, `mpdecimal`), oraz `sevenzip`, `upx`, `llama.cpp` (z `ggml`
+  i `libomp`) i – jeśli jest zainstalowany – `libimobiledevice` z zależnościami – przenosi pliki do nowych ścieżek
+  z numerem wersji w `/opt/homebrew/Cellar`. Takiej zmiany nie da się zatwierdzić w aplikacji: **przebuduj ją**
+  (`app/build.sh`). Dokładną listę pokazują wiersze `T`/`F`/`L` na początku `Cerber.app/Contents/Resources/backend.manifest`.
+* **Każda przebudowa wymaga ponownego nadania Pełnego dostępu do dysku.** Aplikacja jest podpisywana ad hoc, więc po
+  każdym `app/build.sh` ma nowy podpis i macOS traktuje ją jak inny program: w **Ustawienia systemowe → Prywatność
+  i ochrona → Pełny dostęp do dysku** usuń stary wpis Cerbera (−) i dodaj nową `Cerber.app` (+).
+
+Przełączniki `app/build.sh`:
+
+| Zmienna | Działanie |
+|---|---|
+| `CERBER_BUNDLE=/ścieżka/Cerber.app` | buduje aplikację w innym miejscu (np. w folderze tymczasowym). Pieczęć dalej wskazuje ten projekt: taka kopia uruchamia wyłącznie backend z katalogu, dla którego ją zbudowano |
+| `CERBER_NO_SEAL=1` | kompilacja deweloperska **bez pieczęci**: backend nie jest sprawdzany, działa `CERBER_ROOT`, `--selftest-parse` wykonuje też test atrapy API z katalogu tymczasowego (w zapieczętowanej kompilacji jest pomijany). Nigdy do codziennego używania z Pełnym dostępem do dysku |
+| `CERBER_DEBUG=1` | kompilacja bez optymalizacji (szybsza) |
 
 ### API na localhost
 
@@ -165,13 +209,3 @@ Narzędzia deweloperskie: `python -m cerber.devtool PLIK` (drzewo obiektów i wy
 * Bez roota / Full Disk Access część środowiska (BTM, cron innych użytkowników, TCC.db) nie jest sprawdzana — raport to wypisuje.
 * ClamAV bytecode (.cbc), sygnatury ikon i porównania bajtów w .ldb nie są obsługiwane (~0,1% sygnatur).
 * Pliki i foldery trzymane **tylko w iCloud Drive / innej chmurze** (placeholdery przy „Optymalizuj miejsce na Macu”) są pomijane i liczone w raporcie — samo ich otwarcie kazałoby macOS pobrać je z chmury (cały skan by się wlókł i ściągnął całą chmurę). Nie ma ich na dysku, więc nie mogą się uruchomić; po pobraniu na Maca kolejny skan je sprawdzi.
-
-## Licencja
-
-Copyright © 2026 Filip Biskupski. Kod jest jawny, ale **nie jest open source**: **Licencja Cerbera 1.0** (`LICENSE`)
-pozwala na darmowy użytek **wyłącznie osobom prywatnym** do celów prywatnych. Firmy, organizacje, użytek komercyjny
-oraz rozpowszechnianie zmienionych wersji – tylko za pisemną zgodą autora. Cudze bazy i modele pobierane przez Cerbera
-mają własne licencje – zob. `THIRD-PARTY.md`.
-
-Source-available, **not open source**: free for private individuals only. Organizations and commercial use require a
-written license from the author. See `LICENSE`.

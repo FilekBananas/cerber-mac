@@ -18,6 +18,8 @@ process after a timeout.
 Detections (engine "macos"):
     Heur:MachO.CertificateRevoked           60  signing certificate revoked (codesign or Gatekeeper/OCSP verdict;
                                                 Apple revokes certificates of malware developers)
+    Heur:MachO.CertificateRevoked.AfterNotarization  10  cert revoked AFTER a valid notarization (stapled ticket +
+                                                offline verification still pass): benign cert rotation, not malware
     Heur:MachO.Signature.Invalid         10-35  executable modified after signing: 30 (35 quarantined);
                                                 only the bundle seal broken (added/modified resources): 10 (25 quarantined)
     Heur:MachO.Unsigned.Quarantined         15  downloaded (quarantined) executable that is not signed at all
@@ -308,10 +310,18 @@ class MacOSTrustAnalyzer(Analyzer):
             if gk.get("source", "").startswith("Notarized"):
                 res["notarized"] = True
             if "CSSMERR_TP_CERT_REVOKED" in gk.get("message", ""):
-                # codesign verifies offline; Gatekeeper's revocation check is authoritative
-                res["revoked"] = True
-                res.pop("_trusted", None)
-                res.pop("trusted_signer", None)
+                # A revoked signing certificate is only authoritative proof of malice when the signature is
+                # NOT intact: Apple revokes malware developers' certs, but also rotates/revokes legitimate
+                # Developer ID certs for benign reasons. A binary that still passes `codesign --verify --strict`
+                # AND chains to Apple (trusted_signer set) was not tampered with – its cert was simply revoked
+                # after the fact (common for notarized apps and their nested helpers, which keep running). Treat
+                # that as a weak signal, not a 60-point revocation; keep full strength for broken/unsigned code.
+                if ver.get("valid") and res.get("_trusted"):
+                    res["cert_revoked_sig_intact"] = True
+                else:
+                    res["revoked"] = True
+                    res.pop("_trusted", None)
+                    res.pop("trusted_signer", None)
         if ver.get("revoked"):
             res["revoked"] = True
             res.pop("_trusted", None)
@@ -330,6 +340,11 @@ class MacOSTrustAnalyzer(Analyzer):
         agent = (q or {}).get("agent")
         src = (res.get("where_froms") or [None])[0]
         revoked = bool(ver.get("revoked") or res.get("revoked"))
+        if res.get("cert_revoked_post_notarization") and not revoked:
+            fire("Heur:MachO.CertificateRevoked.AfterNotarization", Confidence.LOW, 10,
+                 "Signing certificate was revoked after notarization; the notarized build still validates "
+                 "(benign cert rotation unless other signals say otherwise)",
+                 [gk.get("message"), *(cs.get("authorities") or [])[:1]])
         if revoked:
             fire("Heur:MachO.CertificateRevoked", Confidence.HIGH, 60,
                  "Signing certificate has been revoked by Apple (Gatekeeper refuses it)",
@@ -355,7 +370,7 @@ class MacOSTrustAnalyzer(Analyzer):
                  "Downloaded executable with only an ad-hoc signature (no developer identity)",
                  [f"agent={agent}", src, f"identifier={cs.get('identifier')}"])
         elif q and state == "certificate" and gk and gk.get("rc") not in (None, 0) and not gk.get("not_an_app") \
-                and not gk.get("skipped") and not revoked:
+                and not gk.get("skipped") and not revoked and not res.get("cert_revoked_sig_intact"):
             fire("Heur:MachO.Gatekeeper.Rejected", Confidence.MEDIUM, 20,
                  "Gatekeeper rejects this downloaded binary (not notarized / untrusted)",
                  [gk.get("message"), f"agent={agent}", src])
