@@ -74,6 +74,17 @@ def collect_posture(ctx: EnvContext) -> None:
         sigs_by.append(("System Integrity Protection (SIP) częściowo wyłączony", "csrutil",
                         [Signal(f"{S}.SIPCustom", 15, Confidence.MEDIUM,
                                 "SIP działa w konfiguracji niestandardowej (osłabionej)", [txt[:200]])]))
+    # Signed System Volume: with "authenticated root" off the system volume no longer has to match Apple's seal,
+    # which is what a rootkit modifying /System needs (CIS macOS benchmark, Wazuh SCA)
+    r = run(["/usr/bin/csrutil", "authenticated-root", "status"], timeout=10)
+    ar = r.out.strip()
+    post["authenticated_root"] = "enabled" if "status: enabled" in ar else "disabled" if "status: disabled" in ar \
+        else "unknown"
+    if post["authenticated_root"] == "disabled":
+        sigs_by.append(("Pieczęć woluminu systemowego (SSV) wyłączona", "csrutil authenticated-root",
+                        [Signal(f"{S}.SSVDisabled", 25, Confidence.MEDIUM,
+                                "„Authenticated Root” jest wyłączone: pliki systemu macOS nie muszą zgadzać się z pieczęcią "
+                                "Apple (można je podmienić)", [ar])]))
     # Gatekeeper
     r = run(["/usr/sbin/spctl", "--status"], timeout=10)
     gk = r.out.strip() or r.err.strip()

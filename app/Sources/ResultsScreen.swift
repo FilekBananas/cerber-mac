@@ -59,6 +59,16 @@ struct ResultsScreen: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let v = session.sandboxViolation { SandboxViolationBanner(problems: v) }
                 VerdictHero(summary: summary, request: session.request)
+                if !session.defenseLog.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionTitle(title: "Aktywna obrona",
+                                     subtitle: "Co Cerber zrobił sam w trakcie tego skanu",
+                                     icon: "shield.lefthalf.filled")
+                        ForEach(session.defenseLog) { d in DefenseRow(action: d, protection: model.protection) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .card(padding: 16, radius: 18)
+                }
                 if summary.cancelled {
                     Banner(icon: "stop.circle.fill", title: "Skanowanie zostało przerwane",
                            message: "To wyniki częściowe – sprawdzono \(Fmt.files(summary.files ?? 0)). Uruchom skan ponownie, aby sprawdzić resztę.",

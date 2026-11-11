@@ -17,6 +17,39 @@ go do ostatniej warstwy i porównać każdą warstwę z milionami wzorców.
 ./cerber.sh quarantine list        # kwarantanna (restore/delete ID)
 ```
 
+## Wyniki testów (11 listopada 2026)
+
+Bez prawdziwego malware: tylko oficjalne, niegroźne pliki testowe i wiedza publiczna
+(`tests/benchmark/safe_bench.py`, każdy może to powtórzyć: `fetch`, potem `run`).
+
+| Test | Wynik | Co to sprawdza |
+|---|---|---|
+| **AMTSO Security Features Check** (desktop) + 4 oficjalne pliki **eicar.org** | **11/11 (100%)** | Standardowy test organizacji AMTSO (Anti-Malware Testing Standards Organization), którym sprawdza się, czy ochrona antywirusa w ogóle działa: EICAR pobrany z sieci, EICAR w zip/zipx, samorozpakowujące się `.exe` (RAR i ZIP SFX), plik testowy PUA i plik „CloudCar”. Skróty SHA-256 sprawdzane przy pobraniu |
+| **EICAR w 57 formatach kontenerów** | **57/57 (100%)** | Plik testowy schowany w tym, co spotyka użytkownik Maca: zip (deflate/bzip2/lzma, zagnieżdżony do 8 poziomów, zaszyfrowany „infected”, AES, hasło-rok), 7z z szyfrowanymi nazwami, tar.gz/bz2/xz/zst, gz/bz2/xz/lzma/zstd/lz4/Unix `.Z`, cpio, ar/deb, xar, **.pkg**, **DMG w 5 formatach**, ISO, zip w DMG, DMG w zip, docx/xlsx/odt/epub/jar/crx/nupkg, Electron asar, e-mail i mbox, załącznik PDF, plik base64, pakiet `.app` |
+| **…i 57 „bliźniaków” bez EICAR** | **57/57 czystych** | Te same kontenery z niegroźnym plikiem tekstowym (ciąg EICAR z jedną zmienioną literą) – zero fałszywych alarmów |
+| Skróty SHA-256 z raportów Objective-See „The Mac Malware of 2019–2024” | 8/33 | Tylko zapytanie do lokalnej bazy skrótów, bez pobierania próbek. Większości tych starszych próbek nie ma w publicznych bazach skrótów (MalwareBazaar) – takie zagrożenia Cerber łapie regułami YARA/XProtect i heurystykami, nie skrótem |
+| Rodziny malware na Maca z tych raportów (2019–2025) z **regułą nazwaną od rodziny** | 57/83 (69%) | Ile rodzin ma własną sygnaturę YARA/ClamAV. Sama nazwana reguła nie gwarantuje wykrycia każdej wersji; brak reguły nie znaczy, że rodzina przejdzie (heurystyki, XProtect, TLSH) |
+
+**Czego te testy nie mierzą:** skuteczności wobec nowego, prawdziwego malware. Uznane rankingi (AV-TEST,
+AV-Comparatives „Mac Security Test”) używają setek żywych próbek pod umową – tego nie da się powtórzyć na
+plikach testowych. AMTSO i EICAR pokazują, że cała maszyneria (pobieranie, rozpakowywanie, sygnatury, werdykt)
+działa od początku do końca, a bliźniaki – że nie krzyczy na wszystko, co wygląda podobnie.
+
+## Co Cerber przejął z otwartych antywirusów
+
+| Pomysł | Skąd | W Cerberze |
+|---|---|---|
+| Sygnatury bajtowe i logiczne, hashe sekcji PE, biała lista | **ClamAV** | własny silnik tych samych baz (bez demona) |
+| Pamięć skanów: niezmienione, czyste pliki nie są skanowane drugi raz | **ClamAV** (clamd cache), **Google Santa** (cache decyzji) | `cerber/scancache.py`: tylko poziomy Szybki/Średni, tylko CZYSTE pliki, tożsamość pliku z `ctime` (tej nie da się ustawić z przestrzeni użytkownika), podpis HMAC, każda zmiana baz lub kodu unieważnia wszystko; zapisuje tylko proces nadrzędny poza sandboksem; Pobrane/Biurko/tmp i programy spoza /Applications zawsze skanowane od nowa |
+| Kto może czytać naciśnięcia klawiszy (event taps) | **Objective-See ReiKey** | skan Dokładny i Mega: każdy program z dostępem do klawiatury, jego podpis i tryb (nasłuch / aktywny filtr); niepodpisany lub z dziwnego miejsca = podejrzany |
+| Autostart we wszystkich zakamarkach (LaunchAgents/Daemons, BTM, cron, rc, wtyczki, rozszerzenia) | **Objective-See KnockKnock**, **BlockBlock** | skan środowiska + „Ochrona w tle” (opcja) |
+| Połączenia procesów, zdalny dostęp | **LuLu**, **Netiquette** | audyt sieci i monitor na żywo w poziomie Mega |
+| Podatne ścieżki ładowania bibliotek (`@rpath`, słabe dyliby) | **Objective-See DHS** | analiza Mach-O |
+| Stan zabezpieczeń: SIP, pieczęć woluminu systemowego (SSV), Gatekeeper, FileVault, zapora, XProtect, aktualizacje, boot-args | **Wazuh SCA**, **osquery**, CIS macOS Benchmark | `cerber/envscan/system.py` |
+| Reguły YARA | **YARA Forge**, **Elastic**, **Apple XProtect**, **Chainguard malcontent** (rodziny malware, frameworki C2, ataki na npm/PyPI), signature-base, ~20 repozytoriów społeczności | poziomy zaufania + kalibracja na ~60 tys. czystych plików |
+| Szpiegowanie iPhone'a (Pegasus, Predator…) | **Amnesty MVT** | sprawdzanie kopii zapasowej iPhone'a |
+| Test „czy ochrona działa” | **AMTSO**, **EICAR** | `tests/benchmark/safe_bench.py` (wyniki wyżej) |
+
 ## Aplikacja (Cerber.app)
 
 `app/build.sh` buduje natywną aplikację `Cerber.app` (SwiftUI) z **pieczęcią integralności** backendu (patrz niżej).
@@ -30,7 +63,7 @@ Uruchamiasz ją ręcznie – nic nie działa w tle i nic nie startuje z systemem
 | **Repozytorium GitHub** | publiczne repo pobierane jako archiwum i skanowane w tym samym sandboksie |
 | **Hugging Face** | model / dataset / Space: kod i konfiguracje w całości, wagi pickle (`.bin/.pt/.ckpt/.pkl…`) w całości lub – dla wielu GB – tylko część wykonywalna (`data.pkl` pobierany zapytaniami Range), safetensors/GGUF tylko nagłówki; wykrywa złośliwe pickle, warstwy Lambda w Keras, wstrzyknięcia w szablonach czatu GGUF |
 | **Sprawdź link** | link do pobrania: pobranie w sandboksie sieciowym (bez dostępu do Twoich plików), rozpoznanie (przekierowania, IP, certyfikat TLS, listy URLhaus/ThreatFox), jeśli to strona – pobranie wszystkich plików do ściągnięcia (do 20), rozpakowanie archiwów i skan każdego pliku |
-| **Ochrona w tle** | (opcja, domyślnie wyłączona) każdy nowo pobrany plik, nowa aplikacja, element autostartu, instalacja .pkg i rozszerzenie przeglądarki jest od razu skanowany jak w poziomie Szybki; złośliwe → kwarantanna + powiadomienie |
+| **Ochrona w tle** | (opcja, domyślnie wyłączona) każdy nowo pobrany plik, nowa aplikacja, element autostartu, instalacja .pkg i rozszerzenie przeglądarki jest od razu skanowany jak w poziomie Szybki; złośliwe → kwarantanna + powiadomienie. **Aktywna obrona** (osobny przełącznik, domyślnie wyłączony): przy pewnym ataku Cerber sam przenosi plik do kwarantanny i zatrzymuje uruchomione z niego procesy (to zrywa ich połączenia), także zdalną powłokę i kradzież haseł wykryte przez nadzór sieci; nigdy nie rusza systemu macOS, kodu podpisanego przez Apple, Cerbera, procesów innych użytkowników ani programów znanych producentów; najwyżej 8 działań na 10 min, każde z „Przywróć” (`cerber/defense.py`) |
 
 Pliki, foldery, repozytoria, Hugging Face i linki są zawsze skanowane dokładnie (bez audytu sieci). AI tylko w poziomie Mega
 (w pozostałych trybach – opcjonalny przełącznik). Model AI (Cisco Foundation-Sec 1.1 8B, 4,9 GB) aplikacja pobiera do `models/` dopiero po kliknięciu
@@ -45,6 +78,16 @@ dostępu, nowe procesy (te same heurystyki co w skanie środowiska), nowe elemen
 zmianę adresu MAC routera (ARP spoofing) i duże wysyłki danych. Nowe pliki (Pobrane, Biurko, /Users/Shared, /tmp)
 i programy uruchomione w trakcie trafiają do tego samego skanu. Monitor kończy się razem ze skanem – nic nie zostaje w tle.
 Ograniczenia: połączenia krótsze niż ~5 s mogą umknąć, zawartości HTTPS nie widać.
+
+### Model normalności tego Maca (mała sieć neuronowa)
+
+Autoenkoder z ~200 tys. parametrów (139-320-160-24-160-320-139), uczony **tylko na tym Macu**:
+`./cerber.sh baseline learn --minutes 10` co 10 s zapisuje cechy każdego uruchomionego programu (skąd działa, kto go
+podpisał i uruchomił, ruch sieciowy, kształt polecenia; nazwy wyłącznie jako kubełki hasza) i uczy sieć je odtwarzać.
+Skan Dokładny i Mega zgłasza programy, których sieć nie umie odtworzyć – zachowujące się inaczej niż cokolwiek
+widziane na tym Macu. To słaba wskazówka (najwyżej 15 pkt, pewność niska), nigdy sama nie decyduje i nigdy nie
+uruchamia aktywnej obrony. Im dłużej i w różnych sytuacjach się uczy (kilka sesji się sumuje), tym mniej
+fałszywych wskazówek. Dane i model zostają w `db/baseline/` (poza repozytorium). Trening wymaga Pythona z numpy.
 
 ### Analiza zachowania (uruchamianie skryptów w zamkniętym sandboksie)
 
@@ -146,11 +189,11 @@ do zaszyfrowanej kwarantanny), `--exclude GLOB`, `--timeout S` (na plik), `--max
 | **YARA** | ~13,4 tys. reguł w poziomach zaufania: **XProtect Apple** (pewne), **YARA-Forge core** (pewne przy wysokim score), własne paczki Cerbera `rules/custom/` (312 reguł skrypty/web + 59 macOS, 0 fałszywych alarmów na czystych plikach), **community** (YARA-Forge full, Elastic macOS, `rules/experimental/`) – tylko wskazówki, nigdy samodzielny werdykt „złośliwy”; wadliwe reguły wycinane bisekcją |
 | **IOC** | URLhaus + ThreatFox: URL/domeny/IP wyciągnięte z plików porównywane z listami złośliwych |
 | **Podobieństwo** | TLSH plików wykonywalnych vs ~1 mln próbek MalwareBazaar – tylko dowód wspierający (infektory plików i binarki Go/Rust są „podobne” do legalnych plików) |
-| **Rozpakowywanie** | ~30 formatów: zip/jar/apk/crx/ooxml, **Electron .asar**, tar.*, gz/bz2/xz/zstd/lz4/lzip, 7z, rar, cab, iso, **dmg**, **pkg** (Payload, skrypty pre/postinstall, InstallerJS), cpio, pbzx, deb, rpm, wim, vhd, chm, msi, NSIS/SFX, e-maile; hasła „infected” itp.; ochrona przed bombami |
+| **Rozpakowywanie** | ~30 formatów: zip/jar/apk/crx/ooxml, **Electron .asar**, tar.*, gz/bz2/xz/zstd/lz4/lzip/Unix `.Z`, 7z, rar, cab, iso, **dmg**, **pkg** (Payload, skrypty pre/postinstall, InstallerJS), cpio, pbzx, deb, rpm, wim, vhd, chm, msi, NSIS/SFX, e-maile, pliki w całości w base64; hasła „infected”, lata i proste hasła z „crackowanych” instalatorów, hasło z nazwy pliku („Setup (password 1234).zip”) i z treści e-maila; ochrona przed bombami |
 | **Pliki wykonywalne** | PE (packery, entropia, importy/API, zasoby, nakładki, .NET, PyInstaller), ELF, **Mach-O** (podpis kodu, ad-hoc, hardened runtime, entitlements, dyliby, UPX), plastry fat, `codesign`/`spctl`/kwarantanna/źródło pobrania |
 | **Dokumenty** | VBA (własna dekompresja MS-OVBA, stomping p-code), XLM 4.0, DDE, zdalne szablony, Follina, OLE/Equation Editor, RTF, PDF (JS, strumienie, ObjStm, szyfrowanie), LNK, OneNote |
 | **Skrypty** | deobfuskacja warstwowa (base64/-EncodedCommand, char-code, konkatenacje, gzip, obfuscator.io, Dean Edwards, VBE, skompilowany AppleScript .scpt/JXA) i heurystyki: PowerShell, JS, VBS, batch, shell, Python, npm, AppleScript, PHP/Perl/Ruby, HTML/HTA (smuggling, ClickFix), .reg, skróty |
-| **Środowisko macOS** | LaunchAgents/Daemons, elementy logowania, cron, pliki rc powłoki, profile, rozszerzenia systemu i przeglądarek, procesy (podpisy, łańcuchy osascript), sieć, hosts/DNS/proxy, SIP/Gatekeeper/FileVault/firewall/XProtect; znalezione pliki idą do głębokiego skanu |
+| **Środowisko macOS** | LaunchAgents/Daemons, elementy logowania, cron, pliki rc powłoki, profile, rozszerzenia systemu i przeglądarek, procesy (podpisy, łańcuchy osascript), sieć, hosts/DNS/proxy, SIP/SSV/Gatekeeper/FileVault/firewall/XProtect, programy z dostępem do klawiatury (event taps); znalezione pliki idą do głębokiego skanu |
 | **AI (lokalnie)** | Cisco Foundation-Sec 1.1 8B Instruct (Llama 3.1 8B douczony na tekstach o bezpieczeństwie, GGUF Q4_K_M przez llama-server) **weryfikuje zarzuty** silników wobec plików z „szarej strefy”: każdy zarzut ocenia jako trafny / chybiony / niepewny z pewnością i uzasadnieniem cytującym plik, oraz mówi, czy to podejrzewana rodzina, podobna, inna, czy legalny program. Nie decyduje: przesuwa punkty zarzutów (chybiony −50 %, trafny +20 %), łącznie najwyżej ±15 pkt; nigdy nie rusza sygnatur/hashy/ClamAV/IOC, nie robi z pliku CZYSTEGO (odporność na prompt injection: dwa przebiegi w odwrotnej kolejności, cytaty sprawdzane w pliku) |
 | **Kalibracja** | przy `update` Cerber skanuje ~25 tys. czystych plików systemowych Apple i ~45 tys. plików z notaryzowanych aplikacji; reguły, które tam strzelają, są wyłączane (z aplikacji firm trzecich – tylko reguły community) |
 

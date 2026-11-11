@@ -108,7 +108,9 @@ def parse_threatfox(text: str, min_conf: int = 50) -> list[tuple[bytes, str]]:
 
 
 def import_threatfox(db: HashDB, log: Log) -> int:
-    path = _cached(THREATFOX, "threatfox_full.zip", 12, log)
+    from .updater import abusech_urls, fetch_feed
+    path = fetch_feed(abusech_urls("threatfox", ["full.csv.zip", "full.zip"]),
+                      os.path.join(config.FEEDS, "threatfox_full.zip"), log, "ThreatFox (macOS)")
     with zipfile.ZipFile(path) as z:
         name = next(n for n in z.namelist() if n.endswith(".csv"))
         text = z.read(name).decode("utf-8", "replace")
@@ -247,9 +249,9 @@ def parse_bazaar_api(resp: dict) -> list[tuple[bytes, str]]:
 
 
 def import_bazaar_api(db: HashDB, log: Log) -> int:
-    key = os.environ.get("CERBER_ABUSECH_KEY")
+    key = config.abusech_key()
     if not key:
-        log("    MalwareBazaar API: pominięto (brak CERBER_ABUSECH_KEY)")
+        log("    MalwareBazaar API: pominięto (brak klucza abuse.ch)")
         return 0
     rows = []
     for post in ({"query": "get_file_type", "file_type": "macho", "limit": "1000"},

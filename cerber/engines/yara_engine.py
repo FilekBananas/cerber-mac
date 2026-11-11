@@ -39,8 +39,14 @@ NON_SCRIPT_FTYPES = {"macho", "macho_fat", "dmg"}
 
 
 def _is_fs_image(data: bytes) -> bool:
-    """Raw HFS+/APFS volume (what a .dmg unpacks to)."""
-    return (len(data) > 0x600 and (data[1024:1026] in (b"H+", b"HX") or data[32:36] == b"NXSB"))
+    """Raw HFS+/APFS volume or a whole raw disk (GPT / Apple partition map) – what a .dmg unpacks to."""
+    if len(data) <= 0x600:
+        return False
+    if data[1024:1026] in (b"H+", b"HX") or data[32:36] == b"NXSB":
+        return True
+    if data[512:520] == b"EFI PART" or data[4096:4104] == b"EFI PART":       # GPT (512 / 4096-byte sectors)
+        return True
+    return data[:2] == b"ER" and data[512:514] == b"PM"                      # Apple partition map
 
 
 # hunting/"catch-all" rules that are meant for triage, not detection
@@ -48,13 +54,18 @@ NOISY_RULES = {"GODMODERULES_IDDQD_God_Mode_Rule",
                "RUSSIANPANDA_Win_Sus_Internetshortcutfile",   # fires on Electron Framework builds
                # flags any obfuscator.io output; legitimate Electron apps ship obfuscated code, and the
                # script analyzers already score obfuscation together with what the code does
-               "SIGNATURE_BASE_SUSP_Obfuscated_JS_Obfuscatorio"}
+               "SIGNATURE_BASE_SUSP_Obfuscated_JS_Obfuscatorio",
+               # "a (dirty) hack to display UTF-8 on Windows command prompt" (`chcp 65001`): electron-updater and
+               # countless build scripts run it; it says nothing about intent
+               "TELEKOM_SECURITY_Cn_Utf8_Windows_Terminal"}
 
 PUA_HINTS = ("HKTL", "HACKTOOL", "HACKTOOL", "PUA", "ADWARE", "GRAYWARE", "RISKWARE", "PENTEST",
              "OFFENSIVE", "_TOOL_", "REDTEAM")
 SUSP_HINTS = ("SUSP", "HUNT", "INDICATOR", "INFO_", "_INFO", "VULN", "GEN_", "_GEN", "ANOMALY",
               "CAPABILITY", "DEBUG", "EXPERIMENTAL", "OBFUS", "PACKER", "PACKED", "LOLBAS", "TOOLKIT",
-              "SIGNED_", "CERT", "EMBEDDED", "HIGH_ENTROPY", "HEURISTIC", "GENERIC", "_LOW_")
+              "SIGNED_", "CERT", "EMBEDDED", "HIGH_ENTROPY", "HEURISTIC", "GENERIC", "_LOW_",
+              # build-tool identification: how a program was packaged, not what it does
+              "PYINSTALLER")
 
 
 _REGEX_CTX = re.compile(r"(?:=|\bmatches|\()\s*$")

@@ -54,19 +54,19 @@ claude.exe.6066,147520,17361129,
 Adobe Desktop S.1324,0,0,
 garbage line
 """
-WHO = """jan            console      Oct  3 16:25
-jan            ttys000      Oct  3 16:25
-jan            ttys003      Oct  6 10:00 (45.33.32.156)
-jan            ttys004      Oct  6 10:01 (tmux(1234).%0)
-jan            ttys005      Oct  6 10:02 (:0)
+WHO = """filip            console      Oct  3 16:25
+filip            ttys000      Oct  3 16:25
+filip            ttys003      Oct  6 10:00 (45.33.32.156)
+filip            ttys004      Oct  6 10:01 (tmux(1234).%0)
+filip            ttys005      Oct  6 10:02 (:0)
 """
-LAST = """jan      ttys007                         Tue Oct  6 15:47   still logged in
+LAST = """filip      ttys007                         Tue Oct  6 15:47   still logged in
 admin      ttys003   45.33.32.156          Tue Oct  6 10:00   still logged in
-jan      ttys006   192.168.1.20          Sat Oct  3 16:26 - 16:30  (00:04)
+filip      ttys006   192.168.1.20          Sat Oct  3 16:26 - 16:30  (00:04)
 reboot time                                Sat Oct  3 16:25
 shutdown time                              Sat Oct  3 16:24
-jan      console                         Thu Jan  2 09:00 - crash (4+04:07)
-jan      ttys002   mac-mini.local        Mon Dec 30 18:33 - 18:40  (00:07)
+filip      console                         Thu Jan  2 09:00 - crash (4+04:07)
+filip      ttys002   mac-mini.local        Mon Dec 30 18:33 - 18:40  (00:07)
 
 wtmp begins Mon Dec 30 18:00:00 2024
 """
@@ -74,7 +74,7 @@ NOW = time.mktime((2026, 10, 6, 16, 0, 0, 0, 0, -1))
 
 
 def _ctx(home: str, **opts) -> EnvContext:
-    o = {"codesign": False, "reverse_dns": False, "homes_override": [UserHome("jan", 501, home)]}
+    o = {"codesign": False, "reverse_dns": False, "homes_override": [UserHome("filip", 501, home)]}
     o.update(opts)
     return EnvContext(o)
 
@@ -155,14 +155,14 @@ class PureParsers(unittest.TestCase):
     def test_who(self):
         s = na.parse_who(WHO, now=NOW)
         self.assertEqual(len(s), 5)
-        self.assertEqual(s[0], {"user": "jan", "tty": "console", "from": None, "since": "2026-10-03 16:25"})
+        self.assertEqual(s[0], {"user": "filip", "tty": "console", "from": None, "since": "2026-10-03 16:25"})
         self.assertEqual(s[2]["from"], "45.33.32.156")
         self.assertIsNone(s[3]["from"])       # tmux
         self.assertIsNone(s[4]["from"])       # X display
 
     def test_last_year_inference_and_remote(self):
         logins = na.parse_last(LAST, now=NOW)
-        self.assertEqual([x["user"] for x in logins], ["jan", "admin", "jan", "jan", "jan"])
+        self.assertEqual([x["user"] for x in logins], ["filip", "admin", "filip", "filip", "filip"])
         self.assertEqual(logins[0]["when"], "2026-10-06 15:47")
         self.assertEqual(logins[1], {"user": "admin", "tty": "ttys003", "from": "45.33.32.156",
                                      "when": "2026-10-06 10:00", "remote": True})
@@ -316,7 +316,7 @@ class EndToEnd(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         t = self.tmp.name
-        self.home = os.path.join(t, "Users", "jan")
+        self.home = os.path.join(t, "Users", "filip")
         os.makedirs(os.path.join(self.home, ".ssh"))
         with open(os.path.join(self.home, ".ssh", "authorized_keys"), "w") as fh:
             fh.write("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEtoFakeKeyMaterialForTests0123456789abcdefgh laptop@home\n")
@@ -372,7 +372,7 @@ class EndToEnd(unittest.TestCase):
         elif cmd == "sysctl":
             out = "{ sec = 1791037525, usec = 31710 } Sat Oct  3 16:25:25 2026\n"
         elif cmd == "who":
-            out = "jan            console      Oct  3 16:25 \nadmin            ttys003      Oct  6 10:00 (45.33.32.156)\n"
+            out = "filip            console      Oct  3 16:25 \nadmin            ttys003      Oct  6 10:00 (45.33.32.156)\n"
         elif cmd == "last":
             out = "admin      ttys003   45.33.32.156          Tue Oct  6 10:00   still logged in\n"
         elif cmd == "launchctl":
@@ -442,7 +442,7 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(by_name["Zdalne logowanie (SSH)"]["status"], "enabled")
         self.assertEqual(by_name["Udostępnianie ekranu (VNC)"]["status"], "disabled")
         self.assertEqual(by_name["Zarządzanie urządzeniem (MDM)"]["status"], "enabled")
-        self.assertEqual(by_name["Klucze SSH (authorized_keys) – jan"]["risk"], "low")
+        self.assertEqual(by_name["Klucze SSH (authorized_keys) – filip"]["risk"], "low")
         self.assertNotIn("Google Chrome", by_name)
 
         f = {x.title: x for x in self.ctx.findings}
@@ -465,7 +465,7 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(f["Włączona usługa zdalnego dostępu: Zdalne logowanie (SSH)"].severity, "low")
         self.assertNotIn("Aktywne połączenie zdalne: Zdalne logowanie (SSH)", f)
         self.assertIn(f["Zdalne logowania w historii (last)"].severity, ("low", "suspicious"))
-        self.assertEqual(f["Logowanie kluczem SSH bez hasła: jan"].severity, "low")
+        self.assertEqual(f["Logowanie kluczem SSH bez hasła: filip"].severity, "low")
         self.assertIn(f["Komputer zarządzany przez MDM"].severity, ("info", "low"))
         self.assertTrue(any("netusage" in x for x in self.ctx.limitations))
         for x in self.ctx.findings:

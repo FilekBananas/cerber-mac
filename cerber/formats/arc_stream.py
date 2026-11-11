@@ -323,6 +323,114 @@ class Lz4Adapter(_Base):
         return b""
 
 
+class LzwAdapter(_Base):
+    """Unix compress (.Z): LZW with 9..16-bit codes, '1f 9d' + flags (max bits, block mode).
+
+    Port of the decoder in pigz (unlzw), including the format's quirk: whenever the code width changes or a
+    CLEAR code arrives, the rest of the current group of `bits` bytes is skipped. Output comes in chunks;
+    DecompStream enforces the size / ratio limits, so a bomb stops early."""
+
+    CHUNK = 1 << 16
+
+    def __init__(self, data: bytes, start: int = 0):
+        self.data = data
+        self.start = start
+        self.gen = self._decode()
+
+    def consumed(self) -> int:
+        return self.consumed_bytes
+
+    def step(self) -> bytes | None:
+        if self.done:
+            return None
+        try:
+            return next(self.gen)
+        except StopIteration:
+            self.done = True
+            return None
+        except ValueError as exc:
+            self.error = str(exc)
+            self.done = True
+            return None
+
+    def _decode(self):
+        d = self.data
+        base = self.start + 3
+        if d[self.start:self.start + 2] != b"\x1f\x9d" or len(d) < base:
+            raise ValueError("compress: bad header")
+        flags = d[self.start + 2]
+        maxbits, block = flags & 0x1F, bool(flags & 0x80)
+        if flags & 0x60 or not 9 <= maxbits <= 16:
+            raise ValueError("compress: unknown flags")
+        total = (len(d) - base) * 8
+        prefix = [0] * 65536
+        suffix = bytearray(65536)
+        bits, mask = 9, 0x1FF
+        end = 256 if block else 255
+        bitpos = 0                    # bits consumed since `base`
+        mark = 0                      # byte offset (from base) where the current code width started
+
+        def code_at(pos: int, n: int) -> int:
+            i = base + (pos >> 3)
+            return (int.from_bytes(d[i:i + 3], "little") >> (pos & 7)) & ((1 << n) - 1)
+
+        def realign() -> int:
+            used = (bitpos + 7) >> 3                  # bytes loaded so far (pigz reads whole bytes)
+            rem = (used - mark) % bits
+            return used + (bits - rem if rem else 0)
+
+        if total < 9:
+            return
+        prev = code_at(0, 9)
+        bitpos = 9
+        if prev > 255:
+            raise ValueError("compress: invalid first code")
+        final = prev
+        out = bytearray([prev])
+        stack = bytearray()
+        while True:
+            if end >= mask and bits < maxbits:
+                mark = realign()
+                bitpos = mark * 8
+                bits += 1
+                mask = (mask << 1) | 1
+            if bitpos + bits > total:
+                break
+            code = code_at(bitpos, bits)
+            bitpos += bits
+            if code == 256 and block:
+                mark = realign()
+                bitpos = mark * 8
+                bits, mask, end = 9, 0x1FF, 255
+                continue
+            temp = code
+            stack.clear()
+            if code > end:
+                if code != end + 1 or prev > end:
+                    raise ValueError("compress: invalid code")
+                stack.append(final)
+                code = prev
+            while code >= 256:
+                stack.append(suffix[code])
+                code = prefix[code]
+            stack.append(code)
+            final = code
+            if end < mask:
+                end += 1
+                prefix[end] = prev
+                suffix[end] = final
+            prev = temp
+            stack.reverse()
+            out += stack
+            if len(out) >= self.CHUNK:
+                self.consumed_bytes = 3 + ((bitpos + 7) >> 3)
+                yield bytes(out)
+                out = bytearray()
+        self.consumed_bytes = len(d) - self.start
+        if out:
+            yield bytes(out)
+
+
 class PbzxAdapter(_Base):
     """Apple pbzx: 'pbzx' + flags + [flags, length, xz chunk]*"""
 
@@ -391,7 +499,7 @@ def _lzip_member(head: bytes) -> tuple[object, int]:
 
 
 def make_adapter(kind: str, data: bytes, start: int = 0):
-    """Return an adapter for kind in gzip|zlib|deflate|bzip2|xz|lzma|zstd|lz4|lzip|pbzx (None if unsupported)."""
+    """Return an adapter for kind in gzip|zlib|deflate|bzip2|xz|lzma|zstd|lz4|lzip|pbzx|compress (None if unsupported)."""
     if kind == "gzip":
         return ZlibAdapter(data, start, 31)
     if kind == "zlib":
@@ -450,6 +558,8 @@ def make_adapter(kind: str, data: bytes, start: int = 0):
                             member_factory=_lzip_member)
     if kind == "pbzx":
         return PbzxAdapter(data, start)
+    if kind == "compress":
+        return LzwAdapter(data, start)
     return None
 
 

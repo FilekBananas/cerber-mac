@@ -226,9 +226,34 @@ def _ps_tokens(text: str):
         pos = e
 
 
+_PY_QUOTED = re.compile(r"'''.*?'''|\"\"\".*?\"\"\"|'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"", re.S)
+_PY_PREFIX = set("rbufRBUF")
+_WORD = re.compile(r"\w")
+
+
+def _py_tokens(text: str):
+    """Same tokens as _LIT_RX["python"], ~5x faster: the quoted part starts with a quote (the regex engine
+    can skip to it), the optional r/b/u/f prefix of 1–2 letters not preceded by a word character is
+    attached afterwards – exactly the leftmost match the combined pattern would have produced."""
+    prev_end = 0
+    for m in _PY_QUOTED.finditer(text):
+        s = m.start()
+        start = s
+        if s - 1 >= prev_end and text[s - 1] in _PY_PREFIX:
+            if s - 2 >= prev_end and text[s - 2] in _PY_PREFIX:
+                if s - 3 < 0 or not _WORD.match(text[s - 3]):
+                    start = s - 2
+            elif s - 2 < 0 or not _WORD.match(text[s - 2]):
+                start = s - 1
+        prev_end = m.end()
+        yield start, m.end(), text[start:m.end()]
+
+
 def iter_literals(text: str, lang: str, min_len: int = 0, limit: int = 200000):
     if lang == "powershell":
         toks = _ps_tokens(text)
+    elif lang == "python":
+        toks = _py_tokens(text)
     else:
         rx = _LIT_RX.get(lang) or _LIT_RX["javascript"]
         toks = ((m.start(), m.end(), m.group(0)) for m in rx.finditer(text))

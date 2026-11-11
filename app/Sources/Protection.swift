@@ -39,9 +39,12 @@ struct WatchFlagged: Identifiable, Sendable, Equatable {
     var score: Double?
     var quarantined: String?
     var quarantineError: String?
+    /// pids of processes the active defense stopped (they were running this file).
+    var stopped: [Int] = []
 
     init(_ j: JSONValue) {
         path = j["path"].text ?? ""
+        stopped = j["stopped"].array.compactMap(\.int)
         verdict = Verdict(raw: j["verdict"].text)
         primary = j["primary"].text
         score = j["score"].double
@@ -85,6 +88,7 @@ struct WatchEvent: Sendable, Equatable {
     // ready
     var level: String?
     var quarantine: Bool?
+    var defend: Bool?
     var net: Bool?
     var netReport: String?
     var spots: [WatchSpot] = []
@@ -109,6 +113,8 @@ struct WatchEvent: Sendable, Equatable {
     var subtitle: String?
     var msg: String?
     var noticeLevel: String?
+    // active defense
+    var defense: DefenseAction?
 
     init(ev: String, _ j: JSONValue) {
         self.ev = ev
@@ -119,7 +125,9 @@ struct WatchEvent: Sendable, Equatable {
         note = j["note"].text
         level = j["level"].text
         quarantine = j["quarantine"].bool
+        defend = j["defend"].bool
         net = j["net"].bool
+        if ev == "watch_defense" { defense = DefenseAction(j) }
         netReport = j["net_report"].text
         spots = j["spots"].array.map(WatchSpot.init)
         if ev == "watch_net" { netItem = NetEvent(j["item"]) }
@@ -139,6 +147,30 @@ struct WatchEvent: Sendable, Equatable {
         msg = j["msg"].text
         noticeLevel = (ev == "watch_notice") ? j["level"].text?.lowercased() : nil
     }
+}
+
+/// `watch_defense` – something the active defense did (or refused to do) on its own.
+struct DefenseAction: Identifiable, Sendable, Equatable {
+    let id = UUID()
+    var action: String          // quarantined | stopped | failed | skipped
+    var title: String
+    var detail: String
+    var path: String?
+    var qid: String?
+    var pids: [Int]
+    var time: Date
+
+    init(_ j: JSONValue) {
+        action = j["action"].text ?? "skipped"
+        title = j["title"].text ?? "Aktywna obrona"
+        detail = j["detail"].text ?? ""
+        path = j["path"].text
+        qid = j["qid"].text
+        pids = j["pids"].array.compactMap(\.int)
+        time = Fmt.parseDate(j["time"].text) ?? Date()
+    }
+
+    var acted: Bool { action == "quarantined" || action == "stopped" }
 }
 
 /// One line of the "Aktywność" feed (merged by path: new → scanning → result).
@@ -176,6 +208,8 @@ final class BackgroundProtection {
 
     static let enabledKey = "backgroundProtectionEnabled"
     static let quarantineKey = "backgroundProtectionQuarantine"
+    static let defenseKey = "backgroundProtectionDefense"
+    static let maxDefense = 100
     static let levelKey = "backgroundProtectionLevel"
     static let networkKey = "backgroundProtectionNetwork"
     static let maxActivity = 500
@@ -185,6 +219,15 @@ final class BackgroundProtection {
     var enabled: Bool = UserDefaults.standard.bool(forKey: BackgroundProtection.enabledKey)
     /// Off unless the user turns it on: detections are reported, the user decides about quarantine.
     var autoQuarantine: Bool = UserDefaults.standard.object(forKey: BackgroundProtection.quarantineKey) as? Bool ?? false
+    /// Off unless the user turns it on: certain attacks → quarantine + stop their processes (`--defend`, includes
+    /// the automatic quarantine). Never touches macOS, Apple-signed code or Cerber (cerber/defense.py).
+    var activeDefense: Bool = UserDefaults.standard.bool(forKey: BackgroundProtection.defenseKey)
+    /// What the active defense did in this session, newest first.
+    var defenseLog: [DefenseAction] = []
+    /// Quarantine ids being restored right now / already restored / restore errors.
+    var restoring: Set<String> = []
+    var restored: Set<String> = []
+    var restoreErrors: [String: String] = [:]
     var level: ScanLevel = ScanLevel(rawValue: UserDefaults.standard.string(forKey: BackgroundProtection.levelKey) ?? "") == .deep ? .deep : .quick
     /// Off unless the user turns it on: network & remote-access guard (`--net`).
     var netGuard: Bool = UserDefaults.standard.bool(forKey: BackgroundProtection.networkKey)
@@ -266,6 +309,12 @@ final class BackgroundProtection {
         if isRunning { restart() }
     }
 
+    func setActiveDefense(_ on: Bool) {
+        activeDefense = on
+        UserDefaults.standard.set(on, forKey: Self.defenseKey)
+        if isRunning { restart() }
+    }
+
     func setNetGuard(_ on: Bool) {
         netGuard = on
         UserDefaults.standard.set(on, forKey: Self.networkKey)
@@ -301,7 +350,8 @@ final class BackgroundProtection {
     // MARK: process
 
     var arguments: [String] {
-        ["watch", "run", "--app", "--level", level == .deep ? "deep" : "quick"] + (autoQuarantine ? ["--quarantine"] : [])
+        ["watch", "run", "--app", "--level", level == .deep ? "deep" : "quick"]
+            + (autoQuarantine && !activeDefense ? ["--quarantine"] : []) + (activeDefense ? ["--defend"] : [])
             + (netGuard ? ["--net"] : [])
     }
 
@@ -433,6 +483,11 @@ final class BackgroundProtection {
         case "watch_alert":
             lastAlert = w
             notify(alert: w)
+        case "watch_defense":
+            if let d = w.defense {
+                defenseLog.insert(d, at: 0)
+                if defenseLog.count > Self.maxDefense { defenseLog.removeLast(defenseLog.count - Self.maxDefense) }
+            }
         default:
             break
         }
@@ -472,6 +527,22 @@ final class BackgroundProtection {
                   let j = self.activity[i].flagged.firstIndex(where: { $0.path == path }) else { return }
             if let qid { self.activity[i].flagged[j].quarantined = qid }
             else { self.activity[i].flagged[j].quarantineError = r.failureDescription }
+        }
+    }
+
+    /// "Przywróć": the file goes back where it was (without the executable bit – `cerber quarantine restore`).
+    func restore(qid: String) {
+        guard !restoring.contains(qid), !restored.contains(qid) else { return }
+        restoring.insert(qid)
+        restoreErrors[qid] = nil
+        Task { @MainActor in
+            let r = await BackendProcess.run(config: config, arguments: ["quarantine", "restore", qid])
+            self.restoring.remove(qid)
+            if r.exitCode == 0 && r.launchError == nil {
+                self.restored.insert(qid)
+            } else {
+                self.restoreErrors[qid] = r.failureDescription
+            }
         }
     }
 

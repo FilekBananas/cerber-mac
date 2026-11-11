@@ -3,41 +3,41 @@ From: a@example.invalid
 To: b@example.invalid
 Subject: Invoice
 MIME-Version: 1.0
-Content-Type: multipart/mixed; boundary="===============3558753404837501603=="
+Content-Type: multipart/mixed; boundary="===============4972626770004354728=="
 
---===============3558753404837501603==
+--===============4972626770004354728==
 Content-Type: multipart/alternative;
- boundary="===============8497856574811966610=="
+ boundary="===============0145505774423990971=="
 
---===============8497856574811966610==
+--===============0145505774423990971==
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 
 Please see the attachment.
 
---===============8497856574811966610==
+--===============0145505774423990971==
 Content-Type: text/html; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 MIME-Version: 1.0
 
 <html><body><p>Please see the attachment.</p></body></html>
 
---===============8497856574811966610==--
+--===============0145505774423990971==--
 
---===============3558753404837501603==
+--===============4972626770004354728==
 Content-Type: application/zip
 Content-Transfer-Encoding: base64
 Content-Disposition: attachment; filename="invoice.zip"
 MIME-Version: 1.0
 
-UEsDBBQAAAAIANCLW13NFOcDFgAAABQAAAAUAAAAZG9jcy9pbnZvaWNlLnBkZi5leGXLSCzKzUkt
-LlaoyixQyE3NTUot4gIAUEsDBBQAAAAIANCLW13R0cDBHwAAAB0AAAAKAAAAcmVhZG1lLnR4dHN2
-DXJyDVLISCzKzUktLlYoSS0uUShIrMzJT0zhAgBQSwECFAMUAAAACADQi1tdzRTnAxYAAAAUAAAA
-FAAAAAAAAAAAAAAAgAEAAAAAZG9jcy9pbnZvaWNlLnBkZi5leGVQSwECFAMUAAAACADQi1td0dHA
+UEsDBBQAAAAIACCIa13NFOcDFgAAABQAAAAUAAAAZG9jcy9pbnZvaWNlLnBkZi5leGXLSCzKzUkt
+LlaoyixQyE3NTUot4gIAUEsDBBQAAAAIACCIa13R0cDBHwAAAB0AAAAKAAAAcmVhZG1lLnR4dHN2
+DXJyDVLISCzKzUktLlYoSS0uUShIrMzJT0zhAgBQSwECFAMUAAAACAAgiGtdzRTnAxYAAAAUAAAA
+FAAAAAAAAAAAAAAAgAEAAAAAZG9jcy9pbnZvaWNlLnBkZi5leGVQSwECFAMUAAAACAAgiGtd0dHA
 wR8AAAAdAAAACgAAAAAAAAAAAAAAgAFIAAAAcmVhZG1lLnR4dFBLBQYAAAAAAgACAHoAAACPAAAA
 AAA=
 
---===============3558753404837501603==
+--===============4972626770004354728==
 Content-Type: application/octet-stream
 Content-Transfer-Encoding: base64
 Content-Disposition: attachment; filename="statement.pdf.scr"
@@ -45,7 +45,7 @@ MIME-Version: 1.0
 
 aGFybWxlc3MK
 
---===============3558753404837501603==--
+--===============4972626770004354728==--
 
 
 From c@example.invalid Tue Jan  2 00:00:00 2024
@@ -53,15 +53,15 @@ From: c@example.invalid
 To: b@example.invalid
 Subject: Second
 MIME-Version: 1.0
-Content-Type: multipart/mixed; boundary="===============7247271158310905571=="
+Content-Type: multipart/mixed; boundary="===============6570938895866787537=="
 
---===============7247271158310905571==
+--===============6570938895866787537==
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 
 A second, different message.
 
---===============7247271158310905571==
+--===============6570938895866787537==
 Content-Type: application/octet-stream
 Content-Transfer-Encoding: base64
 Content-Disposition: attachment; filename="notes.txt"
@@ -69,5 +69,5 @@ MIME-Version: 1.0
 
 c2Vjb25kIGF0dGFjaG1lbnQK
 
---===============7247271158310905571==--
+--===============6570938895866787537==--
 

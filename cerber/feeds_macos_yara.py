@@ -58,6 +58,13 @@ SOURCES = [
     # qqbgxi/MalwareDetectionTool pominięte: kopia reguł z innych repozytoriów (po deduplikacji 1 reguła)
     {"tag": "cape", "repo": "CAPESandbox/community", "branch": "master", "license": "brak/GPL (CAPE)",
      "path_re": r"(^|/)(data/)?yara/"},
+    # Chainguard malcontent: tylko reguły rodzin malware, frameworków C2 i znanych ataków na łańcuch dostaw
+    # (npm/PyPI); reguły „capability” z reszty repo są zbyt ogólne (każdy program coś pobiera, coś szyfruje)
+    {"tag": "mc", "repo": "chainguard-dev/malcontent", "branch": "main", "license": "Apache-2.0",
+     "mode": "tree", "path_re": r"/rules/malware/(family|framework)/"},
+    {"tag": "mcs", "repo": "chainguard-dev/malcontent", "branch": "main", "license": "Apache-2.0",
+     "mode": "tree", "path_re": r"/rules/malware/supplychain/", "all_rules": True,
+     "deny_re": HUNT},
     # ~1000 reguł macOS wyciągniętych z sygnatur Defendera; repo bez licencji — wyłączalne przez CERBER_MACYARA_SKIP=dy
     {"tag": "dy", "repo": "roadwy/DefenderYara", "branch": "main", "license": "brak (pochodne sygnatur MS Defender)",
      "mode": "tree", "path_re": r"/MacOS/", "all_rules": True},

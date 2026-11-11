@@ -44,6 +44,9 @@ class ScanOptions:
     level: str = "deep"                  # quick/patterns = signatures only, deep/mega = everything
     defer_ai: bool = False               # build AI context but let the caller run the model
     collect_cloud: bool = False          # Mega: list risky cloud-only files so the caller can fetch them
+    cache: bool = False                  # skip files remembered as clean (cerber/scancache.py; quick/patterns only)
+    cache_fp: str = ""                   # context fingerprint (hex) computed by the trusted parent
+    cache_record: str = ""               # side file for the identities of files found CLEAN (merged by the parent)
 
     @property
     def patterns_only(self) -> bool:
@@ -86,7 +89,7 @@ def load_engines(opts: ScanOptions, log: Callable[[str], None] = print) -> tuple
         info["missing"].append("hash")
     if os.path.exists(os.path.join(config.CLAMAV_COMPILED, "meta.json")):
         eng = ClamAVEngine(config.CLAMAV_COMPILED, disabled=disabled)
-        eng.preload()
+        eng.preload(skip_targets=(PE_TARGET,))      # built in scan_paths, only when Windows files can turn up
         engines.append(eng)
         info["clamav_signatures"] = eng.signature_count
         info["clamav_patterns"] = len(eng.pat_spec)
@@ -107,6 +110,37 @@ def load_engines(opts: ScanOptions, log: Callable[[str], None] = print) -> tuple
         info["ioc_indicators"] = services.ioc.count()
     info["load_seconds"] = round(time.time() - t0, 1)
     return engines, services, info
+
+
+PE_TARGET = 1
+# first bytes of Windows executables and of every container a Windows executable can be unpacked from
+PE_HOLDER_MAGIC = (b"MZ", b"PK", b"\x1f\x8b", b"7z\xbc\xaf", b"Rar!", b"\xfd7zXZ", b"BZh", b"xar!",
+                   b"\xd0\xcf\x11\xe0", b"MSCF", b"ISc(", b"\x78\xda", b"\x78\x9c", b"%PDF", b"\x28\xb5\x2f\xfd",
+                   b"LZIP", b"\x5d\x00\x00", b"\xed\xab\xee\xdb", b"070707", b"0707", b"!<arch>", b"\x04\x22\x4d\x18",
+                   b"\x1f\x9d")
+PE_HOLDER_EXT = (".exe", ".dll", ".scr", ".sys", ".msi", ".cab", ".com", ".cpl", ".ocx", ".dmg", ".iso", ".img",
+                 ".tar", ".eml", ".mbox", ".msg", ".asar", ".jar", ".apk", ".vhd", ".vhdx", ".wim", ".sparseimage",
+                 ".sparsebundle", ".pkg", ".mpkg", ".zip", ".lnk", ".one", ".chm", ".hta", ".udf", ".nupkg", ".z", ".b64")
+PE_PRECHECK_MAX = 40_000        # above this many files the 25 s build is small next to the scan anyway
+
+
+def may_hold_windows_exe(files: list[str]) -> bool:
+    """Can any of these files be – or contain – a Windows (PE) executable? Reads at most 8 bytes per file.
+    A False here only defers the PE signatures: a worker still builds them the moment a PE object appears
+    (e.g. one decoded out of a script), so this decides speed, never what is detected."""
+    if len(files) > PE_PRECHECK_MAX:
+        return True
+    for f in files:
+        if f.lower().endswith(PE_HOLDER_EXT):
+            return True
+        try:
+            with open(f, "rb") as fh:
+                head = fh.read(8)
+        except OSError:
+            continue
+        if head.startswith(PE_HOLDER_MAGIC):
+            return True
+    return False
 
 
 def total_patterns(info: dict) -> int:
@@ -174,6 +208,7 @@ def result_dict(root: ScanObject, want_ai_context: bool) -> dict:
 
 _PIPE: Pipeline | None = None
 _WANT_AI = False
+_RECORD_IDS = False             # take each file's identity before scanning it (scan memory, see scancache)
 
 
 class _FileTimeout(Exception):
@@ -189,16 +224,28 @@ def _init_worker():
     signal.signal(signal.SIGALRM, _alarm)
 
 
+def _identity(path: str) -> list[int] | None:
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    return [st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns] if stat.S_ISREG(st.st_mode) else None
+
+
 def _scan_one(args: tuple[str, int]) -> dict:
     path, timeout = args
     t0 = time.time()
     try:
+        ident = _identity(path) if _RECORD_IDS else None      # before reading: a later change bumps ctime
         signal.alarm(timeout)
         try:
             root = _PIPE.scan_file(path)
         finally:
             signal.alarm(0)
-        return result_dict(root, _WANT_AI)
+        res = result_dict(root, _WANT_AI)
+        if ident is not None:
+            res["_id"] = ident
+        return res
     except _FileTimeout:
         return {"path": path, "verdict": "CLEAN", "score": 0, "detections": [], "size": 0, "objects": 0,
                 "errors": [f"timeout po {timeout}s – plik przeskanowany częściowo"], "ai_context": None,
@@ -218,10 +265,12 @@ def _scan_one(args: tuple[str, int]) -> dict:
 CLOUD_LIST_MAX = 20000          # risky cloud-only files / unlisted cloud folders remembered for Mega's fetch step
 
 def iter_files(paths: list[str], opts: ScanOptions, skipped: list[str],
-               stats: dict | None = None, on_dir: Callable[[str], None] | None = None) -> Iterator[str]:
+               stats: dict | None = None, on_dir: Callable[[str], None] | None = None,
+               skip: Callable[[str, os.stat_result], bool] | None = None) -> Iterator[str]:
     """Regular files under `paths`. Cloud-only placeholders (iCloud Drive etc.) are counted in
     stats["cloud_only"] and never listed or opened – that would download them. With opts.collect_cloud the
-    risky ones go to stats["cloud_files"] ([path, size, rank]) and unlisted folders to stats["cloud_dirs"]."""
+    risky ones go to stats["cloud_files"] ([path, size, rank]) and unlisted folders to stats["cloud_dirs"].
+    `skip(path, stat)`: True leaves the file out (scan memory hit; the walk's own stat, no extra syscall)."""
     never_materialize()
     if stats is None:
         stats = {}
@@ -252,7 +301,8 @@ def iter_files(paths: list[str], opts: ScanOptions, skipped: list[str],
             cloud(top, st)
             continue
         if stat.S_ISREG(st.st_mode):
-            yield top
+            if skip is None or not skip(top, st):
+                yield top
             continue
         if not stat.S_ISDIR(st.st_mode):
             continue
@@ -304,6 +354,8 @@ def iter_files(paths: list[str], opts: ScanOptions, skipped: list[str],
                             continue
                         if est.st_size == 0:
                             continue
+                        if skip is not None and skip(p, est):
+                            continue
                         yield p
             stack.extend(reversed(subdirs))
 
@@ -339,7 +391,7 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
                engines_bundle: tuple | None = None, progress: bool = True,
                on_result: Callable[[dict], None] | None = None,
                on_progress: Callable[[dict], None] | None = None) -> dict:
-    global _PIPE, _WANT_AI
+    global _PIPE, _WANT_AI, _RECORD_IDS
     from .analyzers import load_all
 
     started = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -367,6 +419,21 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
     walk_stats: dict = {}
     files = []
     last_dir = [0.0]
+    # scan memory (cerber/scancache.py): only the signature levels; the child reads, the parent writes
+    use_cache = opts.cache and opts.patterns_only
+    lookup = recorder = None
+    if use_cache:
+        from . import scancache
+        try:
+            fp = bytes.fromhex(opts.cache_fp) if opts.cache_fp else scancache.context_fingerprint(opts)
+            lookup = scancache.Lookup(fp) if len(fp) == 16 else None
+        except (OSError, ValueError) as exc:
+            log(f"Pamięć skanów niedostępna: {exc}")
+        if opts.cache_record and not info.get("missing"):
+            try:
+                recorder = scancache.Recorder(opts.cache_record)
+            except OSError as exc:
+                log(f"Pamięć skanów: nie można zapisać listy sprawdzonych plików: {exc}")
 
     def on_dir(d: str) -> None:
         now = time.time()
@@ -374,9 +441,15 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
             last_dir[0] = now
             on_progress({"stage": "enumerate", "found": len(files), "current": d})
 
-    for f in iter_files(paths, opts, skipped, walk_stats, on_dir):
+    for f in iter_files(paths, opts, skipped, walk_stats, on_dir, skip=lookup.hit if lookup else None):
         files.append(f)
+    cache_hits = lookup.hits if lookup else 0
+    if lookup is not None and lookup.bad:
+        log(f"Pamięć skanów: odrzucono {lookup.bad:,} wpisów z nieprawidłowym podpisem (HMAC) – pliki skanuję")
+    lookup = None                           # free the rows before the workers fork
     total_bytes = 0
+    if cache_hits:
+        log(f"Pominięto {cache_hits:,} niezmienionych plików (już sprawdzone, pamięć skanów)")
     log(f"Do przeskanowania: {len(files):,} plików")
     if walk_stats["cloud_only"]:
         log(f"Pominięto {walk_stats['cloud_only']:,} elementów tylko w chmurze (iCloud itp.) – nie ma ich na dysku")
@@ -393,6 +466,9 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
 
     def handle(r: dict) -> None:
         nonlocal total_bytes, objects, done, timeouts, last_cb
+        ident = r.pop("_id", None)
+        if recorder is not None and ident is not None and scancache.result_cacheable(r):
+            recorder.add(r["path"], ident)
         done += 1
         total_bytes += r.get("size", 0) or 0
         objects += r.get("objects", 0) or 0
@@ -415,25 +491,16 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
                          "current": r["path"], "eta_s": int(el / done * (len(files) - done)) if done > 20 else None})
 
     jobs = [(f, opts.file_timeout) for f in files]
-    if workers <= 1 or len(files) < 4:
-        _init_worker_main()
-        for j in jobs:
-            handle(_scan_one(j))
-    else:
-        gc.collect()
-        gc.freeze()  # keep the huge signature structures shared (copy-on-write friendly)
-        ctx = mp.get_context("fork")
-        with ctx.Pool(workers, initializer=_init_worker) as pool:
-            try:
-                for r in pool.imap_unordered(_scan_one, jobs, chunksize=2):
-                    handle(r)
-            except KeyboardInterrupt:
-                pool.terminate()
-                prog.done()
-                log("Przerwano – raport zawiera wyniki częściowe.")
-        gc.unfreeze()
+    _RECORD_IDS = recorder is not None
+    try:
+        _run_jobs(jobs, files, workers, engines, info, handle, prog, log)
+    finally:
+        _RECORD_IDS = False
+        if recorder is not None:
+            recorder.close()                # flushed even when the scan is interrupted
     prog.done()
 
+    counts["CLEAN"] = counts.get("CLEAN", 0) + cache_hits
     report = {
         "started": started,
         "finished": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -442,7 +509,8 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
         "options": {k: v for k, v in opts.__dict__.items()},
         "databases": info,
         "patterns_total": total_patterns(info),
-        "files": done,
+        "files": done + cache_hits,
+        "cache_hits": cache_hits,
         "cancelled": done < len(files),
         "bytes": total_bytes,
         "objects": objects,
@@ -460,7 +528,7 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
     if (opts.ai or opts.ai_all) and not opts.defer_ai:
         run_ai(report, opts, log)
         report["counts"] = {v.name: 0 for v in Verdict}
-        report["counts"]["CLEAN"] = done - len(report["results"])
+        report["counts"]["CLEAN"] = report["files"] - len(report["results"])
         for r in report["results"]:
             report["counts"][r["verdict"]] += 1
     if not opts.defer_ai:
@@ -468,13 +536,41 @@ def scan_paths(paths: list[str], opts: ScanOptions, log: Callable[[str], None] =
             r.pop("ai_context", None)
     if opts.quarantine:
         from .quarantine import quarantine_file
+        from .verdict import ml_decisive
         for r in report["results"]:
-            if r["verdict"] == "MALICIOUS" and os.path.isfile(r["path"]):
+            if r["verdict"] == "MALICIOUS" and not ml_decisive(r) and os.path.isfile(r["path"]):
                 try:
                     r["quarantined"] = quarantine_file(r["path"], r)
                 except OSError as exc:
                     r["quarantine_error"] = str(exc)
     return report
+
+
+def _run_jobs(jobs: list, files: list[str], workers: int, engines: list, info: dict,
+              handle: Callable[[dict], None], prog: Progress, log: Callable[[str], None]) -> None:
+    if workers <= 1 or len(files) < 4:
+        _init_worker_main()
+        for j in jobs:
+            handle(_scan_one(j))
+    else:
+        clam = next((e for e in engines if getattr(e, "name", "") == "clamav"), None)
+        if clam is not None and PE_TARGET in clam.pending_targets() and may_hold_windows_exe(files):
+            t1 = time.time()
+            log("Ładowanie sygnatur plików Windows (.exe) …")
+            clam.preload()                 # before the fork: one shared copy instead of one per worker
+            info["load_seconds"] = round(info.get("load_seconds", 0) + time.time() - t1, 1)
+        gc.collect()
+        gc.freeze()  # keep the huge signature structures shared (copy-on-write friendly)
+        ctx = mp.get_context("fork")
+        with ctx.Pool(workers, initializer=_init_worker) as pool:
+            try:
+                for r in pool.imap_unordered(_scan_one, jobs, chunksize=2):
+                    handle(r)
+            except KeyboardInterrupt:
+                pool.terminate()
+                prog.done()
+                log("Przerwano – raport zawiera wyniki częściowe.")
+        gc.unfreeze()
 
 
 def merge_reports(base: dict, extra: dict) -> dict:
@@ -484,7 +580,7 @@ def merge_reports(base: dict, extra: dict) -> dict:
         if r["path"] not in seen:
             base.setdefault("results", []).append(r)
             seen.add(r["path"])
-    for k in ("files", "bytes", "objects", "timeouts", "skipped_count", "cloud_only"):
+    for k in ("files", "bytes", "objects", "timeouts", "skipped_count", "cloud_only", "cache_hits"):
         base[k] = (base.get(k) or 0) + (extra.get(k) or 0)
     counts = {v.name: 0 for v in Verdict}            # recount: a program may have been in the main scan already
     for r in base.get("results", []):

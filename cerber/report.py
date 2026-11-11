@@ -49,6 +49,8 @@ def print_console(report: dict, show_info: bool = False, env: dict | None = None
         p(f" Pominięte (brak dostępu itp.): {report['skipped_count']}")
     if report.get("cloud_only"):
         p(f" Pominięte – tylko w chmurze (iCloud itp.), nie ma ich na dysku: {report['cloud_only']}")
+    if report.get("cache_hits"):
+        p(f" Niezmienione od poprzedniego skanu (pamięć skanów, liczone jako czyste): {report['cache_hits']:,}")
     if env:
         print_env(env)
     shown = [r for r in report["results"] if show_info or r["verdict"] != "INFO"]
@@ -512,6 +514,9 @@ def write_html(report: dict, path: str, env: dict | None = None) -> str:
     dbs = e(json.dumps(report.get("databases", {}), ensure_ascii=False, indent=1, default=str))
     cloud_note = (f" · pominięto {_n(report['cloud_only'], ',')} elementów tylko w chmurze (iCloud itp.) – nie ma ich na dysku"
                   if report.get("cloud_only") else "")
+    if report.get("cache_hits"):
+        cloud_note += (f" · {_n(report['cache_hits'], ',')} plików niezmienionych od poprzedniego skanu pominięto"
+                       " (pamięć skanów)")
     env_html += _cloud_html(report.get("cloud_fetch"))
     doc = f"""<!doctype html><html lang="pl"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">{REPORT_CSP}<title>Raport Cerber</title><style>{CSS}</style></head>

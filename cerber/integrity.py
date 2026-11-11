@@ -381,6 +381,8 @@ def discover(root: str, pycache: str | None = None, pypath: str | None = None,
             spec.trees.add(os.path.join(compiled, b"clamav"))
         yb = os.path.join(compiled, b"yara.bin")
         (spec.files if os.path.isfile(yb) else spec.absent).add(yb)
+        ml = os.path.join(compiled, b"ml_tlsh.json")    # plain JSON, but its scores feed the verdict
+        (spec.files if os.path.isfile(ml) else spec.absent).add(ml)
 
     links: set[bytes] = set()
     chain(os.path.join(venv, b"bin", b"python"), links)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import os
 import struct
 
 from .core import ScanObject
@@ -76,6 +77,7 @@ MAGICS: list[tuple[int, bytes, str, str]] = [
     (0, b"QFI\xfb", "qcow", "QEMU disk"),
     (0, b"\x4c\x5a\x49\x50", "lzip", "lzip"),
     (0, b"\x04\x22\x4d\x18", "lz4", "LZ4"),
+    (0, b"\x1f\x9d", "compress", "Unix compress (LZW, .Z)"),
     (0, b"UPX!", "upx", "UPX stub"),
     (0, b"#!", "script", "Script with shebang"),
     (0, b"\xca\xfe\xd0\x0d", "java_pack", "Java pack200"),
@@ -118,7 +120,7 @@ _SCRIPT_HINTS: list[tuple[str, re.Pattern[bytes]]] = [
 
 EXECUTABLE_TYPES = {"pe", "elf", "macho", "macho_fat", "dex", "java_class", "wasm", "pyc"}
 ARCHIVE_TYPES = {"zip", "rar", "7z", "gzip", "bzip2", "xz", "zstd", "lzma", "cab", "xar", "ar",
-                 "cpio", "tar", "iso", "dmg", "lz4", "lzip", "rpm", "wim", "vhd"}
+                 "cpio", "tar", "iso", "dmg", "lz4", "lzip", "rpm", "wim", "vhd", "compress"}
 DOCUMENT_TYPES = {"pdf", "rtf", "ole2", "ooxml", "odf", "chm"}
 SCRIPT_TYPES = {"script", "shell", "python", "powershell", "vbs", "javascript", "batch", "applescript",
                 "php", "html", "hta", "perl", "ruby", "text"}
@@ -353,6 +355,10 @@ def identify_bytes(data: bytes) -> tuple[str, str]:
         return "pyc", "Python bytecode"
     if _is_text(data):
         return _text_subtype(data)
+    # a page that opens with an HTML tag stays HTML even with stray control bytes (IRC colour codes, ANSI,
+    # form feeds): ClamAV types it as HTML too, and its HTML signatures must still apply. NUL = real binary.
+    if b"\x00" not in data[:8192] and _HTML_START.match(data[:4096].lstrip(b" \t\r\n\x0b\x0c\xef\xbb\xbf")):
+        return "html", "html text (with control bytes)"
     return "binary", "unknown binary data"
 
 
@@ -369,6 +375,7 @@ def _ole_subtype(data: bytes) -> str:
 
 
 _ANCHORED = {"html", "plist", "xml"}
+_HTML_START = dict(_SCRIPT_HINTS)["html"]
 
 
 def _text_subtype(data: bytes) -> tuple[str, str]:
@@ -393,6 +400,18 @@ def _text_subtype(data: bytes) -> tuple[str, str]:
 
 def identify(obj: ScanObject) -> None:
     obj.ftype, obj.fdesc = identify_bytes(obj.data)
+    # a file bigger than the scan limit is read head-only, which cuts off a DMG's "koly" trailer: its compressed
+    # data fork then looks like a plain bzip2/zlib stream. Read the real trailer from disk.
+    if obj.ftype != "dmg" and obj.real_path and obj.parent is None:
+        try:
+            size = os.path.getsize(obj.real_path)
+            if size > len(obj.data) and size >= 512:
+                with open(obj.real_path, "rb") as fh:
+                    fh.seek(size - 512)
+                    if fh.read(4) == b"koly":
+                        obj.ftype, obj.fdesc = "dmg", "Apple disk image"
+        except OSError:
+            pass
 
 
 def is_executable(obj: ScanObject) -> bool:

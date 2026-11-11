@@ -978,6 +978,12 @@ def inner_scan(a) -> int:
     if job.get("file_timeout"):
         opts.file_timeout = int(job["file_timeout"])
     opts.collect_cloud = bool(job.get("collect_cloud"))
+    # scan memory: this child only READS it; the files it finds clean are listed in out/ for the unsandboxed
+    # parent, which verifies every row against the disk and alone writes the cache (cerber/scancache.py)
+    if job.get("cache") and isinstance(job.get("cache_fp"), str):
+        from .scancache import SIDE_NAME
+        opts.cache, opts.cache_fp = True, job["cache_fp"]
+        opts.cache_record = os.path.join(a.work, "out", SIDE_NAME)
     out = os.path.join(a.work, "out", "report.json")
     found: list[dict] = []
 

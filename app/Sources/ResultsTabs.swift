@@ -115,6 +115,7 @@ private struct EnvFindingCard: View {
         case "browser": return "globe"
         case "ssh": return "key.horizontal"
         case "profile": return "person.crop.circle.badge.checkmark"
+        case "keyboard": return "keyboard"
         default: return "exclamationmark.circle"
         }
     }
@@ -135,6 +136,7 @@ private struct EnvFindingCard: View {
         case "browser": return "Przeglądarka"
         case "ssh": return "SSH"
         case "profile": return "Profil"
+        case "keyboard": return "Klawiatura"
         case "": return "Inne"
         default: return finding.category.capitalized
         }

@@ -125,7 +125,7 @@ class LogInboxTest(unittest.TestCase):
             now = time.strftime("%Y-%m-%d %H:%M:%S")
             lines = [log_line(now, "sshd-session", f"Failed password for root from 203.0.113.9 port {4000 + i} ssh2")
                      for i in range(12)]
-            lines += [log_line(now, "sshd-session", "Accepted publickey for jan from 192.168.1.20 port 5000 ssh2"),
+            lines += [log_line(now, "sshd-session", "Accepted publickey for filip from 192.168.1.20 port 5000 ssh2"),
                       log_line(now, "sshd-session", "Accepted password for root from 203.0.113.9 port 5001 ssh2")]
             batch = {"from": now, "to": now, "texts": ["\n".join(lines)]}
             with open(os.path.join(inbox, "00000001.json"), "w") as fh:

@@ -154,7 +154,7 @@ def accusations(result: dict) -> tuple[list[dict], list[dict]]:
     best: dict[str, dict] = {}
     facts: list[dict] = []
     for d in result.get("detections") or []:
-        if d.get("engine") == "ai":
+        if d.get("engine") in ("ai", "ml"):     # ML fingerprint hint: nothing to quote, not a fact either
             continue
         if not _judgeable(d):
             facts.append(d)

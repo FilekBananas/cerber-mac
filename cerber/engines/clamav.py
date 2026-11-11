@@ -31,6 +31,7 @@ TEXT_TYPES = {"script", "shell", "python", "powershell", "vbs", "javascript", "b
 GRAPHICS = {"png", "jpeg", "gif", "bmp", "tiff", "ico", "webp", "psd"}
 EXE_TYPES = {"pe", "elf", "macho"}
 MAX_HITS = 256
+PE_TARGET = 1                # ~1 M literals, ~25 s to build: only when the scan can contain Windows executables
 
 
 def get_exe(obj: ScanObject):
@@ -148,9 +149,15 @@ class ClamAVEngine(Engine):
             self.ac[key] = a
         return a
 
-    def preload(self) -> None:
+    def preload(self, skip_targets: tuple[int, ...] = ()) -> None:
+        """Build the automata before the workers fork (shared copy-on-write). Targets in skip_targets stay
+        lazy: a worker builds one the first time an object of that target turns up, so nothing is missed."""
         for key in self._ac_files:
-            self._automaton(key)
+            if key[0] not in skip_targets:
+                self._automaton(key)
+
+    def pending_targets(self) -> set[int]:
+        return {k[0] for k in self._ac_files if k not in self.ac}
 
     @property
     def signature_count(self) -> int:

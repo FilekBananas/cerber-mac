@@ -91,7 +91,7 @@ enum EventDecoder {
             if case .bool(let b) = j["llama_server"] { server = b ? "llama-server" : nil }
             return .aiInstalled(model: j["model"].text ?? "", path: j["path"].text, llamaServer: server)
         case "watch_ready", "watch_new", "watch_scanning", "watch_worker", "watch_sandbox", "watch_result",
-             "watch_notice", "watch_alert", "watch_net", "watch_net_status":
+             "watch_notice", "watch_alert", "watch_net", "watch_net_status", "watch_defense":
             return .watch(WatchEvent(ev: ev, j))
         case "sandbox_violation":
             let problems = j["problems"].stringArray
@@ -293,8 +293,19 @@ final class BackendIntegrity: @unchecked Sendable {
             if warn { FileHandle.standardError.write(Data("Cerber: kompilacja bez pieczęci integralności (app/build.sh ją tworzy) – backend nie jest sprawdzany.\n".utf8)) }
             return nil
         }
-        if let expected = sealedRoot, FSBytes.realpath(Array(root.path.utf8)) != Array(expected.utf8) {
-            return "Ta kopia Cerber.app została zbudowana dla katalogu \(expected), a próbuje uruchomić silnik z \(root.path). Przebuduj aplikację (app/build.sh)."
+        if let expected = sealedRoot {
+            let (real, err) = FSBytes.realpathErrno(Array(root.path.utf8))
+            if real == nil {
+                // the folder could not be resolved at all: almost always macOS privacy protection (the engine lives
+                // in ~/Documents and every rebuild of an ad-hoc signed app loses its Full Disk Access)
+                if err == EPERM || err == EACCES {
+                    return "macOS nie pozwala Cerberowi czytać folderu z silnikiem (\(expected)). Nadaj mu Pełny dostęp do dysku: Ustawienia systemowe → Prywatność i ochrona → Pełny dostęp do dysku (usuń Cerbera „–” i dodaj ponownie „+”), potem uruchom Cerbera jeszcze raz."
+                }
+                return "Nie można otworzyć folderu z silnikiem Cerbera (\(expected)): \(String(cString: strerror(err))). Sprawdź, czy folder nadal istnieje."
+            }
+            if real != Array(expected.utf8) {
+                return "Ta kopia Cerber.app została zbudowana dla katalogu \(expected), a silnik jest teraz w \(String(decoding: real!, as: UTF8.self)). Przebuduj aplikację (app/build.sh)."
+            }
         }
         prefetch()
         done.wait()
@@ -721,6 +732,16 @@ enum FSBytes {
             guard let r = Darwin.realpath(c, nil) else { return nil }
             defer { free(r) }
             return Array(UnsafeBufferPointer(start: UnsafeRawPointer(r).assumingMemoryBound(to: UInt8.self), count: strlen(r)))
+        }
+    }
+
+    /// realpath plus the errno when it fails (EPERM/EACCES = privacy protection, ENOENT = gone).
+    static func realpathErrno(_ p: [UInt8]) -> ([UInt8]?, Int32) {
+        withC(p) { c -> ([UInt8]?, Int32) in
+            errno = 0
+            guard let r = Darwin.realpath(c, nil) else { return (nil, errno) }    // errno read right at the failure
+            defer { free(r) }
+            return (Array(UnsafeBufferPointer(start: UnsafeRawPointer(r).assumingMemoryBound(to: UInt8.self), count: strlen(r))), 0)
         }
     }
 

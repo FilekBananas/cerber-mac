@@ -1,0 +1,2066 @@
+{
+ "label": "20261111",
+ "date": "2026-11-11 17:15",
+ "parts": {
+  "official": {
+   "passed": 11,
+   "total": 11,
+   "rows": [
+    {
+     "name": "eicar.org eicar.com",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "eicar.org eicar.com.txt",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "eicar.org eicar_com.zip",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "MalwareBazaar:Generic.zip",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "eicar.org eicar_com2.zip (zip in zip)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "MalwareBazaar:Generic.zip",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "AMTSO download of malware (eicar.com)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test",
+      "YARA-ext:TRELLIX_ARC_Malw_Eicar"
+     ]
+    },
+    {
+     "name": "AMTSO compressed malware (eicar.zip)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "AMTSO compressed malware (eicar.zipx)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "AMTSO compressed malware (eicar.exe, self-extracting)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:PE.Toolchain.WinRAR-SFX",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "AMTSO compressed malware (eicar_zip.exe, self-extracting)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Fuzzy:TLSH.njrat",
+      "Heur:PE.Toolchain.WinRAR-SFX",
+      "XProtect:EICAR"
+     ]
+    },
+    {
+     "name": "AMTSO potentially unwanted application",
+     "expect": "pua",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:PUA.Win.Trojan.Agent-1350158",
+      "ClamAV:Win.Tool.EICAR-9917185-0",
+      "Heur:PE.Checksum.Mismatch"
+     ]
+    },
+    {
+     "name": "AMTSO cloud lookup (CloudCar)",
+     "expect": "detected",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Win.Trojan.11584714-1",
+      "Heur:PE.Checksum.Mismatch"
+     ]
+    }
+   ]
+  },
+  "matrix": {
+   "passed": 57,
+   "total": 57,
+   "rows": [
+    {
+     "name": "plain .com",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "plain + CRLF (AMTSO style)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test",
+      "YARA-ext:TRELLIX_ARC_Malw_Eicar"
+     ]
+    },
+    {
+     "name": "plain .txt",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "plain, no extension",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip (deflate)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip (stored)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip (bzip2)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip (lzma)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip in folder inside zip",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip nested 2×",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip nested 3×",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip nested 5×",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip nested 8×",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "gzip",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "bzip2",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "xz",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "lzma (alone)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "tar",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "tar.gz",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "tar.bz2",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "tar.xz",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "cpio (newc)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "ar",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "deb (ar + tar.gz)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "jar",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "docx (OOXML part)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Office.EmbeddedExecutable",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "xlsx (OOXML part)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Office.EmbeddedExecutable",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "odt (ODF)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "epub",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "crx (Chrome extension)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "nupkg",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "asar (Electron)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "e-mail attachment (base64)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Email.ExecutableAttachment",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "e-mail with zip attachment",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Email.ArchivedExecutable",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "mbox",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Email.ExecutableAttachment",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "PDF attachment (FlateDecode)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:PDF.EmbeddedExecutable",
+      "Heur:PDF.EmbeddedFile",
+      "XProtect:EICAR"
+     ]
+    },
+    {
+     "name": "base64 file",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "Unix compress (.Z)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zstd",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "tar.zst",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "lz4",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "7z",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "7z, password 'infected', names encrypted",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Archive.Encrypted",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "zip, password 'infected' (ZipCrypto)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Archive.Encrypted",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "zip, password 'infected' (AES-256)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Archive.Encrypted",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "zip, password a year (2024)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "Heur:Archive.Encrypted",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test"
+     ]
+    },
+    {
+     "name": "xar",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "macOS .pkg (pkgbuild)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG UDZO",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG UDBZ",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG ULFO",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG ULMO",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG UDRO",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "ISO 9660",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "zip inside DMG",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "app bundle (Contents/Resources)",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    },
+    {
+     "name": "DMG inside zip",
+     "expect": "malicious",
+     "verdict": "MALICIOUS",
+     "ok": true,
+     "detections": [
+      "ClamAV:Eicar-Test-Signature",
+      "XProtect:EICAR",
+      "YARA-ext:BINARYALERT_Eicar_Av_Test",
+      "YARA-ext:BINARYALERT_Eicar_Substring_Test"
+     ]
+    }
+   ],
+   "near_miss_clean": 57,
+   "near_miss_total": 57,
+   "near_miss_rows": [
+    {
+     "name": "plain .com",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "plain + CRLF (AMTSO style)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "plain .txt",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "plain, no extension",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip (deflate)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip (stored)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip (bzip2)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip (lzma)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip in folder inside zip",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip nested 2×",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip nested 3×",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip nested 5×",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip nested 8×",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "gzip",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "bzip2",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "xz",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "lzma (alone)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "tar",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "tar.gz",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "tar.bz2",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "tar.xz",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "cpio (newc)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "ar",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "deb (ar + tar.gz)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "jar",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "docx (OOXML part)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "xlsx (OOXML part)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "odt (ODF)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "epub",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "crx (Chrome extension)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "nupkg",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "asar (Electron)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "e-mail attachment (base64)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "e-mail with zip attachment",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "mbox",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "PDF attachment (FlateDecode)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "base64 file",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "Unix compress (.Z)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zstd",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "tar.zst",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "lz4",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "7z",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "7z, password 'infected', names encrypted",
+     "expect": "clean",
+     "verdict": "INFO",
+     "ok": true,
+     "detections": [
+      "Heur:Archive.Encrypted"
+     ]
+    },
+    {
+     "name": "zip, password 'infected' (ZipCrypto)",
+     "expect": "clean",
+     "verdict": "INFO",
+     "ok": true,
+     "detections": [
+      "Heur:Archive.Encrypted"
+     ]
+    },
+    {
+     "name": "zip, password 'infected' (AES-256)",
+     "expect": "clean",
+     "verdict": "INFO",
+     "ok": true,
+     "detections": [
+      "Heur:Archive.Encrypted"
+     ]
+    },
+    {
+     "name": "zip, password a year (2024)",
+     "expect": "clean",
+     "verdict": "INFO",
+     "ok": true,
+     "detections": [
+      "Heur:Archive.Encrypted"
+     ]
+    },
+    {
+     "name": "xar",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "macOS .pkg (pkgbuild)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG UDZO",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG UDBZ",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG ULFO",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG ULMO",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG UDRO",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "ISO 9660",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "zip inside DMG",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "app bundle (Contents/Resources)",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    },
+    {
+     "name": "DMG inside zip",
+     "expect": "clean",
+     "verdict": "CLEAN",
+     "ok": true,
+     "detections": []
+    }
+   ]
+  },
+  "hashes": {
+   "passed": 8,
+   "total": 33,
+   "rows": [
+    {
+     "name": "2019 Siggen (HEYgiNb.py)",
+     "sha256": "f5808e9b9d204f646e33bbc4279b98b97b34086ffc3e9fb2ac828a8161099ee8",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2019 NewTab",
+     "sha256": "9237dc996a9e2c939f74414c87350009f11b147f1703823062f790921be30be9",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2020 watchcat (NukeSpeed)",
+     "sha256": "3bb96bfaf492782b38985f4bd6b7e7f9dc22c1332b42bb74b16041298fd31f93",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 SysJoker",
+     "sha256": "1a9a5c797777f37463b44de2b49a7f95abca786db3977dcdac0f79da739c08ac",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 SysJoker",
+     "sha256": "fe99db3268e058e1204aff679e0726dc77fd45d06757a5fda9eafc6a28cfb8df",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 SysJoker",
+     "sha256": "d0febda3a3d2d68b0374c26784198dc4309dbe4a8978e44bb7584fd832c325f0",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 DazzleSpy",
+     "sha256": "f9ad42a9bd9ade188e997845cae1b0587bf496a35c3bffacd20fefe07860a348",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 CoinMiner",
+     "sha256": "fe3700a52e86e250a9f38b7a5a48397196e7832fd848a7da3cc02fe52f49cdcf",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 CoinMiner",
+     "sha256": "fabe0b41fb5bce6bda8812197ffd74571fc9e8a5a51767bcceef37458e809c5c",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 CoinMiner",
+     "sha256": "a2909754783bb5c4fd6955bcebc356e9d6eda94f298ed3e66c7e13511275fbc4",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 Gimmick",
+     "sha256": "2a9296ac999e78f6c0bee8aca8bfa4d4638aa30d9c8ccc65124b1cbfc9caab5f",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 oRAT",
+     "sha256": "ee07dfd6443af8f20f5f11effb9cbcec07e125697a28aee78718caeed17f1407",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 Pymafka",
+     "sha256": "b117f042fe9bac7c7d39eab98891c2465ef45612f5355beea8d3c4ebd0665b45",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 VPN Trojan (Covid)",
+     "sha256": "7831806172857a563d7b4789acddc98fc11763aaf3cedf937630b4a9dce31419",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 VPN Trojan (Covid)",
+     "sha256": "d9bba1cfca6b1d20355ce08eda37d6d0bca8cb8141073b699000d05025510dcc",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 CloudMensis",
+     "sha256": "317ce26cae14dc9a5e4d4667f00fee771b4543e91c944580bbb136e7fe339427",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 CloudMensis",
+     "sha256": "b8a61adccefb13b7058e47edcd10a127c483403cf38f7ece126954e95e86f2bd",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 rShell",
+     "sha256": "3a9e72b3810b320fa6826a1273732fee7a8e2b2e5c0fd95b8c36bbab970e830a",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 rShell",
+     "sha256": "8c3be245cbbe9206a5d146017c14b8f965ab7045268033d70811d5bcc4b796ec",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 Insekt (exploit)",
+     "sha256": "ef130f1941077ffe383fe90e241620dde771cd0dd496dad29d2048d5fc478faf",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2022 Insekt (payload.so)",
+     "sha256": "ae9f370c89f0191492ed9c17a224d9c41778b47ca2768f732b4de6ee7d0d1459",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 KeySteal (ResignTool)",
+     "sha256": "410da3923ea30d5fdd69b9ae69716b094d276cc609f76590369ff254f71c65da",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2022 KeySteal",
+     "sha256": "f5b4a388fee4183dfa46908000c5c50dceb4bf8025c4cfcb4d478c5d03833202",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2023 LockBit macOS",
+     "sha256": "3e4bbd21756ae30c24ff7d6942656be024139f8180b7bddd4e5c62a9dfbd8c79",
+     "ok": true,
+     "verdict": "Generic.macho",
+     "expect": "known"
+    },
+    {
+     "name": "2023 GoSorry (archive)",
+     "sha256": "c80c8c0e961e1692c5afdb8b3dd48e84fb6bb24911ad449ef75976cbf5bf1199",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2023 GoSorry (liboptimizer.dylib)",
+     "sha256": "17b84ed0f8bdbb6619d64bf686a6b990f497b378e3b70792e2cd896c2abda14d",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 fake MiroTalk.dmg",
+     "sha256": "9abf6b93eafb797a3556bea1fe8a3b7311d2864d5a9a3687fce84bc1ec4a428c",
+     "ok": true,
+     "verdict": "Generic.dmg",
+     "expect": "known"
+    },
+    {
+     "name": "2024 trojanised ultraedit.dmg",
+     "sha256": "9eb7bda5ffbb1a7549b1e481b1a6ed6efe2e28d0463370c87630fed74eee6228",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 libConfigurer64.dylib (ultraedit)",
+     "sha256": "ce40829673687b48d68defa3176c8ab59a2a50ee9c658fe46a5de7692fbc112d",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 .fseventsd (ultraedit)",
+     "sha256": "1b2d50cdacfd39205c3caff2925eb35b59312dbe099bd3a98ae3b2f2f909ab17",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 Khepri build (.test)",
+     "sha256": "21457a89317e4c6b8aaee5e461a6b4e444c736243d550efd0e681eda05b97007",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 vShell (Cloudflare Security Authenticator.dmg)",
+     "sha256": "c5686b85efb3ebf2ce07dba4192195c3dac7c335a371b7bcfbf52d5fb15cb507",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    },
+    {
+     "name": "2024 SNOWLIGHT-like",
+     "sha256": "d1b7f3d88ed8d37774b229cc46df2c08c95067736cf418b4a76a8403cae4e2a6",
+     "ok": false,
+     "verdict": "-",
+     "expect": "known"
+    }
+   ]
+  },
+  "families": {
+   "passed": 57,
+   "total": 83,
+   "rows": [
+    {
+     "name": "2019 BirdMiner / LoudMiner",
+     "ok": true,
+     "verdict": "ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 CookieMiner",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 GMERA",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 Mokes",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 NetWire",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 Siggen",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 Yort",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2019 Lazarus MacLoader / AppleJeus",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 GravityRAT",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 IPStorm",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 Dacls",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 EvilQuest / ThiefQuest",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 FinSpy",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 WatchCat",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2020 XCSSET",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 ElectroRAT",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 ElectrumStealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 Macma / CDDS",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 Silver Sparrow",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 XcodeSpy / EggShell",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 ZuRu",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 WildPressure (Milum)",
+     "ok": true,
+     "verdict": "YARA+ClamAV+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2021 XLoader",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 CloudMensis",
+     "ok": true,
+     "verdict": "YARA+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 CrateDepression",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 DazzleSpy",
+     "ok": true,
+     "verdict": "YARA+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 Gimmick",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 Insekt",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 KeySteal",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 oRAT",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 Pymafka",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 rShell",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 SentinelSneak",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 SysJoker",
+     "ok": true,
+     "verdict": "YARA+ClamAV+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2022 VPN Trojan (Covid)",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 SmoothOperator (3CX)",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 Atomic Stealer (AMOS)",
+     "ok": true,
+     "verdict": "YARA+ClamAV+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 Geacon",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 GoSorry",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 JaskaGO",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 JokerSpy",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 KandyKorn",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 LockBit (macOS)",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 MacStealer",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 MetaStealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 NokNok",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 ObjCShellz",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 PureLand",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 Realst",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 RustBucket",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 SparkRAT",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 Turtle",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2023 WSClient",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 Activator",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 Banshee",
+     "ok": true,
+     "verdict": "YARA+ClamAV",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 BeaverTail",
+     "ok": true,
+     "verdict": "YARA+ClamAV+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 CloudChat",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 Cthulhu",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 Hidden Risk",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 HZ Rat",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 InletDrift",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 LightSpy",
+     "ok": true,
+     "verdict": "YARA+ClamAV+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 NotLockBit",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 Poseidon",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 PyStealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 RustDoor",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 RustyAttr",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 SnowLight",
+     "ok": false,
+     "verdict": "hash",
+     "expect": "named signature",
+     "hash_only": true
+    },
+    {
+     "name": "2024 SpectralBlur",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 ToDoSwift",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2024 VShell",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 ChillyHell",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 DigitStealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 FlexibleFerret",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 Frigid Stealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 Kitty Stealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 Koi Stealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 MacSync",
+     "ok": true,
+     "verdict": "YARA+hash",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 NightPaw",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 Paradox",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 PasivRobber",
+     "ok": true,
+     "verdict": "YARA",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 Phexia",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    },
+    {
+     "name": "2025 RN Loader / RN Stealer",
+     "ok": false,
+     "verdict": "-",
+     "expect": "named signature",
+     "hash_only": false
+    }
+   ],
+   "hash_only": 1
+  }
+ },
+ "seconds": 151.7
+}

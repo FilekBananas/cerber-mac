@@ -1011,7 +1011,8 @@ def cmd_url(link, ai):
 
 # ------------------------------------------------------------------------------------------ watch
 
-def cmd_watch(level, quarantine, idle, net=False):
+def cmd_watch(level, quarantine, idle, net=False, defend=False):
+    quarantine = quarantine or defend
     """`python -m cerber watch run --app`: background protection stream. Stops on SIGINT/SIGTERM or stdin EOF."""
     import threading
 
@@ -1042,7 +1043,7 @@ def cmd_watch(level, quarantine, idle, net=False):
          os.path.join(HOME, "Library/Application Support/Google/Chrome/Default/Extensions"), True, None),
     ]
     net_report = os.path.join(REPORT_DIR, "siec-" + _dt.datetime.now().strftime("%Y%m%d") + ".html")
-    emit("watch_ready", level=level, quarantine=quarantine, net=net, net_report=net_report if net else None,
+    emit("watch_ready", level=level, quarantine=quarantine, defend=defend, net=net, net_report=net_report if net else None,
          spots=[{"kind": k, "kind_pl": kp, "path": p, "ok": ok, "error": e} for k, kp, p, ok, e in spots])
     emit("watch_sandbox", verified=VERIFIED)
     emit("watch_worker", state="stopped")
@@ -1093,6 +1094,13 @@ def cmd_watch(level, quarantine, idle, net=False):
                                 "primary": "YARA:MacOS_Stealer_AMOS", "score": 150, "quarantined": qid,
                                 "quarantine_error": None}],
          report=report, time=now())
+    if defend:
+        emit("watch_defense", action="quarantined", title="Zneutralizowano: Faktura",
+             detail="przeniesiono do kwarantanny, zatrzymano 1 proces", path=bad + ">>Faktura.app/Contents/MacOS/Faktura",
+             qid=qid, verdict="MALICIOUS", primary="YARA:MacOS_Stealer_AMOS", pids=[4242], time=now())
+        emit("watch_defense", action="skipped", title="Nie ruszam: Zoom", path="/Applications/zoom.us.app/Contents/MacOS/zoom.us",
+             detail="podpisany przez znanego producenta (Zoom Video Communications, Inc.) – decyzja należy do Ciebie",
+             time=now())
     emit("watch_notice", title="Cerber ⛔ ZŁOŚLIWY", subtitle="faktura_2026_10.zip",
          msg="AMOS Stealer – " + ("plik przeniesiono do kwarantanny." if quarantine else "usuń ten plik!"), level="error")
     emit("watch_alert", title="Cerber: wykryto złośliwy plik",
@@ -1186,7 +1194,7 @@ def environment_findings(level):
          "evidence": ["socketfilterfw --getglobalstate: disabled"]},
         {"category": "ssh", "title": "Klucz w ~/.ssh/authorized_keys", "location": f"{h}/.ssh/authorized_keys",
          "severity": "info", "score": 2, "description": "Ten klucz pozwala zalogować się na konto bez hasła, gdy włączone jest Zdalne logowanie.",
-         "evidence": ["ssh-ed25519 AAAAC3Nz…q9Lw jan@macbook-stary (dodany 2025-03-14)"]},
+         "evidence": ["ssh-ed25519 AAAAC3Nz…q9Lw filip@macbook-stary (dodany 2025-03-14)"]},
         {"category": "process", "title": "Proces bez podpisu uruchomiony z ~/Library/Application Support",
          "location": f"{h}/Library/Application Support/.helper/agent (pid 4312)", "severity": "suspicious", "score": 45,
          "description": "Niepodpisany plik Mach-O w ukrytym katalogu, uruchomiony przez launchd z agenta powyżej.",
@@ -1213,7 +1221,7 @@ def environment_findings(level):
              "location": "Pęk kluczy › Ustawienia zaufania użytkownika", "severity": "low", "score": 10,
              "description": "Certyfikat Charles Proxy jest zaufany dla HTTPS – pozwala odczytać szyfrowany ruch, "
                             "jeśli działa proxy Charles.",
-             "evidence": ["CN=Charles Proxy CA (7 Mar 2026, MacBook-Jana.local)", "zaufanie: SSL, tylko to konto"]},
+             "evidence": ["CN=Charles Proxy CA (7 Mar 2026, MacBook-Filipa.local)", "zaufanie: SSL, tylko to konto"]},
         ]
     if level == "mega":
         findings += [
@@ -1275,7 +1283,7 @@ def network_section():
         ("identityservicesd", 498, "/System/Library/PrivateFrameworks/IDS.framework", "17.57.146.53", 5223, "courier.push.apple.com", None),
         ("zoom.us", 3330, "/Applications/zoom.us.app", "170.114.52.2", 443, "zoom.us", None),
         ("Discord", 2001, "/Applications/Discord.app", "162.159.135.234", 443, "gateway.discord.gg", None),
-        ("rapportd", 455, "/usr/libexec/rapportd", "192.168.1.10", 49152, "iPhone-Jana.local", None),
+        ("rapportd", 455, "/usr/libexec/rapportd", "192.168.1.10", 49152, "iPhone-Filipa.local", None),
     ]
     connections = [{"process": p, "pid": pid, "exe": exe, "remote": ip, "port": port, "host": host,
                     "state": "ESTABLISHED", "public": not ip.startswith("192.168."), "ioc": ioc}
@@ -1316,15 +1324,15 @@ def network_section():
          "detail": "Brak profilu MDM i rejestracji DEP – komputer nie jest zarządzany zdalnie.", "risk": "info"},
     ]
     sessions = [
-        {"user": os.environ.get("USER", "jan"), "tty": "console", "from": None, "since": "2026-10-06 08:01"},
-        {"user": os.environ.get("USER", "jan"), "tty": "ttys001", "from": None, "since": "2026-10-06 09:12"},
-        {"user": os.environ.get("USER", "jan"), "tty": "ttys004", "from": "192.168.1.5", "since": "2026-10-06 11:47"},
+        {"user": os.environ.get("USER", "filip"), "tty": "console", "from": None, "since": "2026-10-06 08:01"},
+        {"user": os.environ.get("USER", "filip"), "tty": "ttys001", "from": None, "since": "2026-10-06 09:12"},
+        {"user": os.environ.get("USER", "filip"), "tty": "ttys004", "from": "192.168.1.5", "since": "2026-10-06 11:47"},
     ]
     logins = [
-        {"user": os.environ.get("USER", "jan"), "tty": "ssh", "from": "203.0.113.5", "when": "2026-10-05 23:58", "remote": True},
-        {"user": os.environ.get("USER", "jan"), "tty": "ttys004", "from": "192.168.1.5", "when": "2026-10-06 11:47", "remote": True},
-        {"user": os.environ.get("USER", "jan"), "tty": "console", "from": None, "when": "2026-10-06 08:01", "remote": False},
-        {"user": os.environ.get("USER", "jan"), "tty": "console", "from": None, "when": "2026-10-05 07:44", "remote": False},
+        {"user": os.environ.get("USER", "filip"), "tty": "ssh", "from": "203.0.113.5", "when": "2026-10-05 23:58", "remote": True},
+        {"user": os.environ.get("USER", "filip"), "tty": "ttys004", "from": "192.168.1.5", "when": "2026-10-06 11:47", "remote": True},
+        {"user": os.environ.get("USER", "filip"), "tty": "console", "from": None, "when": "2026-10-06 08:01", "remote": False},
+        {"user": os.environ.get("USER", "filip"), "tty": "console", "from": None, "when": "2026-10-05 07:44", "remote": False},
         {"user": "_mbsetupuser", "tty": "console", "from": None, "when": "2026-10-01 07:58", "remote": False},
     ]
     return {
@@ -1387,13 +1395,13 @@ def syslog_section():
 
 def lan_section():
     """`network.lan`: router, Wi‑Fi security, DHCP and neighbours (nothing suspicious in either variant)."""
-    return {"gateway": {"ip": "192.168.1.1", "mac": "00:00:5e:00:53:02", "interface": "en0", "mac_randomized": False},
+    return {"gateway": {"ip": "192.168.1.1", "mac": "a4:91:b1:2c:07:e3", "interface": "en0", "mac_randomized": False},
             "wifi": {"interface": "en0", "connected": True, "security": "WPA2 Personal", "security_level": "wpa2",
-                     "security_label": "WPA2", "ssid": "MojaSiec-5G", "source": "airport"},
+                     "security_label": "WPA2", "ssid": "Dom-5G", "source": "airport"},
             "dhcp": {"dhcp_server": "192.168.1.1", "router": "192.168.1.1", "dns": ["192.168.1.1", "1.1.1.1"],
                      "domain": "home", "router_arp_verified": True},
             "arp_entries": 7, "arp_suspicious": [],
-            "arp_multi_ip": [{"mac": "00:00:5e:00:53:03", "interface": "en0", "ips": ["192.168.1.10", "192.168.1.11"]}],
+            "arp_multi_ip": [{"mac": "3c:22:fb:91:aa:10", "interface": "en0", "ips": ["192.168.1.10", "192.168.1.11"]}],
             "ipv6_routers": [{"router": "fe80::a691:b1ff:fe2c:7e3", "interface": "en0", "pref": "medium", "expire": "29m"}]}
 
 
@@ -1401,7 +1409,7 @@ def certificates_section():
     """`network.certificates`: manually trusted certificates (default variant: Charles Proxy)."""
     if CLEAN:
         return []
-    name = "Charles Proxy CA (7 Mar 2026, MacBook-Jana.local)"
+    name = "Charles Proxy CA (7 Mar 2026, MacBook-Filipa.local)"
     return [{"name": name, "domain": "user", "trust": "ssl", "policies": ["sslServer"],
              "subject": f"CN={name}, OU=https://charlesproxy.com/ssl, O=XK72 Ltd, L=Auckland, C=NZ",
              "issuer": f"CN={name}, OU=https://charlesproxy.com/ssl, O=XK72 Ltd, L=Auckland, C=NZ",
@@ -1428,10 +1436,10 @@ class LiveNetMonitor:
             "remote": None, "host": None, "signer": "ad-hoc"}),
         (("scan", 0.15), {
             "kind": "inbound", "severity": "info",
-            "title": "Połączenie przychodzące z sieci lokalnej: iPhone-Jana.local → rapportd",
+            "title": "Połączenie przychodzące z sieci lokalnej: iPhone-Filipa.local → rapportd",
             "detail": "Urządzenie Apple w tej samej sieci połączyło się z usługą Ciągłość/AirDrop – to normalne.",
             "process": "rapportd", "pid": 455, "exe": "/usr/libexec/rapportd",
-            "remote": "192.168.1.10:49812", "host": "iPhone-Jana.local", "signer": "Apple"}),
+            "remote": "192.168.1.10:49812", "host": "iPhone-Filipa.local", "signer": "Apple"}),
         (("scan", 0.3), {
             "kind": "connection", "severity": "suspicious", "alert": True,
             "title": "Nowe połączenie skryptu na nietypowym porcie: python3 → 185.220.101.4:9001",
@@ -1838,6 +1846,8 @@ def main():
     ap.add_argument("--no-quarantine", action="store_true")
     ap.add_argument("--quarantine", action="store_true")
     ap.add_argument("--net", action="store_true")
+    ap.add_argument("--defend", action="store_true")
+    ap.add_argument("--to")
     ap.add_argument("--idle", type=int, default=600)
     ap.add_argument("--make-backup", action="store_true")
     ns = ap.parse_intermixed_args()
@@ -1851,9 +1861,19 @@ def main():
         cmd_info()
     elif c == "history":
         cmd_history()
+    elif c == "quarantine" and ns.args[0] in ("restore", "delete", "list"):
+        nap(0.3)
+        log(f"(mock) quarantine {' '.join(ns.args)} – nic nie zostało ruszone")
     elif c == "quarantine":
         cmd_quarantine(ns.args[0])
     elif c == "scan":
+        if ns.defend:
+            bad = os.path.join(os.path.abspath(ns.args[0]), "faktura_2026_10.zip")
+            log("Aktywna obrona włączona: pewne zagrożenia trafią od razu do kwarantanny, ich procesy zostaną zatrzymane")
+            emit("watch_defense", action="quarantined", title="Zneutralizowano: faktura_2026_10.zip",
+                 detail="przeniesiono do kwarantanny, zatrzymano 1 proces", path=bad, qid=sha(bad)[:16], pids=[4243],
+                 time=now())
+            emit("quarantined", path=bad, id=sha(bad)[:16])
         cmd_scan(ns.args, ns.ai)
     elif c == "sandbox":
         cmd_sandbox(ns.args[0], ns.ai)
@@ -1871,7 +1891,7 @@ def main():
         cmd_iphone(ns.args, ns.make_backup)
     elif c == "watch":
         cmd_watch(ns.level if ns.level in ("quick", "deep") else "quick", ns.quarantine and not ns.no_quarantine, ns.idle,
-                  ns.net)
+                  ns.net, ns.defend)
 
 
 if __name__ == "__main__":

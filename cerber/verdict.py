@@ -110,3 +110,26 @@ def compute_verdict(root: ScanObject) -> None:
         root.meta["primary"] = best.name
     else:
         root.meta["primary"] = None
+
+
+ML_ENGINES = {"ml"}
+
+
+def ml_decisive(r: dict) -> bool:
+    """True when a MALICIOUS result would not be MALICIOUS without the machine-learning hint (engine "ml").
+
+    Owner's rule: the ML model only influences, it never decides – so the active defense (automatic quarantine,
+    stopping processes) must not act on such a verdict; the user still sees it and can act by hand. Works on
+    the result dict (cerber.scanner.result_dict). Conservative: the full ML points are taken off the score, so
+    when in doubt the automatic action is skipped (never the other way round)."""
+    if not isinstance(r, dict) or r.get("verdict") != "MALICIOUS":
+        return False
+    dets = [d for d in (r.get("detections") or []) if isinstance(d, dict)]
+    ml = [d for d in dets if d.get("engine") in ML_ENGINES]
+    if not ml:
+        return False
+    if any(d.get("confidence") == "CERTAIN" and not d.get("pua") and d.get("engine") not in ML_ENGINES
+           for d in dets):
+        return False                                    # an exact signature decided, not the model
+    ml_points = max(int(d.get("score") or 0) for d in ml)
+    return int(r.get("score") or 0) - ml_points < MALICIOUS_SCORE

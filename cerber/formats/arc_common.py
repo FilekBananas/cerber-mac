@@ -20,7 +20,11 @@ from ..core import Confidence, Detection, ScanContext, ScanObject
 
 # passwords tried on encrypted members (malware-sample conventions first)
 PASSWORDS = ["infected", "malware", "virus", "password", "123456", "1234"]
-EXTRA_PASSWORDS = ["12345", "111111", "abc123", "qwerty"]
+EXTRA_PASSWORDS = ["12345", "111111", "abc123", "qwerty",
+                   # cracked-software / fake-installer lures: the year, short digit runs, "pass"
+                   "2023", "2024", "2025", "2026", "2027", "123", "1111", "0000", "pass", "12345678", "123456789"]
+# "Setup (password: 1234).zip", "pass_2025.rar", "pw-abc123.zip": the password printed in the file name
+_NAME_PW = re.compile(r"(?i)(?<![a-z])(?:pass(?:word)?|pwd|pw|has[lł]o|kod|code)\s*[\s:=_\-]\s*([A-Za-z0-9!@#$%^&*._\-]{3,32})")
 
 CHUNK = 1 << 20
 # a member whose compression ratio exceeds max_ratio is only read up to this many bytes
@@ -330,6 +334,14 @@ def candidate_passwords(obj: ScanObject) -> list[str]:
     while o is not None:
         for p in o.meta.get("archive_passwords", []) or []:
             if p not in pws:
+                pws.append(p)
+        o = o.parent
+    o = obj
+    while o is not None:
+        name = os.path.basename((o.display_path or "").rsplit(">>", 1)[-1])
+        for m in _NAME_PW.finditer(os.path.splitext(name)[0]):
+            p = m.group(1).strip("._-")
+            if p and p not in pws:
                 pws.append(p)
         o = o.parent
     for p in PASSWORDS + EXTRA_PASSWORDS:

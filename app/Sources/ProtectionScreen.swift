@@ -20,6 +20,7 @@ struct ProtectionScreen: View {
                 optionsCard
                 statusCard.frame(width: 360)
             }
+            if !p.defenseLog.isEmpty { defenseCard }
             if p.netGuard && (p.enabled || !p.netEvents.isEmpty) { netCard }
             if p.enabled || !p.spots.isEmpty { spotsCard }
             if !p.verified.isEmpty { verifiedCard }
@@ -54,11 +55,18 @@ struct ProtectionScreen: View {
     private var optionsCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionTitle(title: "Ustawienia", icon: "slider.horizontal.3")
-            Toggle(isOn: Binding(get: { p.autoQuarantine }, set: { p.setAutoQuarantine($0) })) {
-                optionLabel("Automatyczna kwarantanna złośliwych plików",
-                            "Potwierdzone złośliwe pliki trafiają od razu do zaszyfrowanej kwarantanny (można je przywrócić).")
+            Toggle(isOn: Binding(get: { p.activeDefense }, set: { p.setActiveDefense($0) })) {
+                optionLabel("Aktywna obrona",
+                            "Działa w ochronie w tle oraz przy skanie laptopa i lokalizacji. Przy pewnym ataku Cerber działa sam: złośliwy plik trafia do kwarantanny, a uruchomione z niego procesy są zatrzymywane, co zrywa ich połączenia (także zdalną powłokę i kradzież haseł wykrytą przez nadzór sieci). Nigdy nie rusza systemu macOS, aplikacji Apple, Cerbera ani programów podpisanych przez znanych producentów – o nich decydujesz Ty. Najwyżej 8 działań na 10 minut; każde można cofnąć przyciskiem „Przywróć”.")
             }
             .toggleStyle(SwitchToggleStyle())
+            Toggle(isOn: Binding(get: { p.autoQuarantine || p.activeDefense }, set: { p.setAutoQuarantine($0) })) {
+                optionLabel("Automatyczna kwarantanna złośliwych plików",
+                            p.activeDefense ? "Włączona razem z aktywną obroną."
+                            : "Potwierdzone złośliwe pliki trafiają od razu do zaszyfrowanej kwarantanny (można je przywrócić).")
+            }
+            .toggleStyle(SwitchToggleStyle())
+            .disabled(p.activeDefense)
             Toggle(isOn: Binding(get: { p.netGuard }, set: { p.setNetGuard($0) })) {
                 optionLabel("Nadzór sieci i zdalnego dostępu",
                             "Sprawdza, czy nikt nie steruje Makiem zdalnie. Co 10 s: połączenia z Internetem, otwarte porty, logowania przez SSH i udostępnianie ekranu, programy do zdalnego sterowania i tunele, nowe uprawnienia do nagrywania ekranu i sterowania komputerem. Co 5 min przegląda dziennik systemowy. Nic nie jest wysyłane do sieci.")
@@ -132,7 +140,7 @@ struct ProtectionScreen: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(statusTitle).font(.system(size: 14, weight: .semibold))
-                    Text(p.status == .running ? "poziom \(p.level.label) · kwarantanna \(p.autoQuarantine ? "automatyczna" : "wyłączona")"
+                    Text(p.status == .running ? "poziom \(p.level.label) · " + (p.activeDefense ? "aktywna obrona" : "kwarantanna \(p.autoQuarantine ? "automatyczna" : "wyłączona")")
                          + (p.netGuard ? " · sieć nadzorowana" : "")
                          : "Włącz przełącznik powyżej")
                         .font(.system(size: 11.5)).foregroundStyle(.secondary)
@@ -310,6 +318,21 @@ struct ProtectionScreen: View {
         .card(padding: 16, radius: 18)
     }
 
+    // MARK: active defense
+
+    private var defenseCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionTitle(title: "Aktywna obrona", subtitle: "Co Cerber zrobił sam w tej sesji · najnowsze na górze",
+                         icon: "shield.lefthalf.filled",
+                         trailing: AnyView(Text("\(p.defenseLog.filter(\.acted).count)").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)))
+            LazyVStack(spacing: 6) {
+                ForEach(p.defenseLog) { d in DefenseRow(action: d, protection: p) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 16, radius: 18)
+    }
+
     // MARK: activity
 
     private var activityCard: some View {
@@ -335,6 +358,70 @@ struct ProtectionScreen: View {
             }
         }
         .card(padding: 16, radius: 18)
+    }
+}
+
+/// "Przywróć" for a quarantined file (the file returns without the executable bit).
+struct RestoreButton: View {
+    var qid: String
+    var protection: BackgroundProtection
+
+    var body: some View {
+        if protection.restored.contains(qid) {
+            Pill(text: "przywrócono", color: Palette.gray, icon: "arrow.uturn.backward")
+        } else {
+            Button {
+                protection.restore(qid: qid)
+            } label: {
+                HStack(spacing: 4) {
+                    if protection.restoring.contains(qid) { Spinner(size: 10, lineWidth: 1.5) }
+                    else { Image(systemName: "arrow.uturn.backward") }
+                    Text("Przywróć")
+                }
+            }
+            .buttonStyle(SecondaryButtonStyle(compact: true))
+            .disabled(protection.restoring.contains(qid))
+            .help(protection.restoreErrors[qid] ?? "Przywróć plik z kwarantanny na jego miejsce (bez prawa uruchamiania)")
+        }
+    }
+}
+
+struct DefenseRow: View {
+    var action: DefenseAction
+    var protection: BackgroundProtection
+
+    private var look: (String, Color) {
+        switch action.action {
+        case "quarantined": return ("lock.shield.fill", Palette.green)
+        case "stopped": return ("stop.circle.fill", Palette.green)
+        case "failed": return ("exclamationmark.octagon.fill", Palette.red)
+        default: return ("hand.raised.fill", Palette.gray)
+        }
+    }
+
+    var body: some View {
+        let (icon, color) = look
+        HStack(alignment: .top, spacing: 12) {
+            SoftIcon(systemName: icon, color: color, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(action.title).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                Text(action.detail).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let e = action.qid.flatMap({ protection.restoreErrors[$0] }) {
+                    Text("Nie udało się przywrócić: \(e)").font(.system(size: 11)).foregroundStyle(Palette.red)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(ActivityRow.time(action.time)).font(.system(size: 11)).foregroundStyle(.tertiary).monospacedDigit()
+            if let q = action.qid { RestoreButton(qid: q, protection: protection) }
+            if let path = action.path, action.qid == nil {
+                Button { FinderActions.reveal(path) } label: { Image(systemName: "folder") }
+                    .buttonStyle(SecondaryButtonStyle(compact: true))
+                    .help("Pokaż w Finderze")
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(color.opacity(0.07)))
     }
 }
 
@@ -384,6 +471,12 @@ private struct ActivityRow: View {
             case .done:
                 if item.quarantinedCount > 0 {
                     Pill(text: "w kwarantannie", color: Palette.green, icon: "lock.fill")
+                    if let q = item.flagged.first(where: { $0.quarantined != nil })?.quarantined {
+                        RestoreButton(qid: q, protection: protection)
+                    }
+                }
+                if item.flagged.contains(where: { !$0.stopped.isEmpty }) {
+                    Pill(text: "procesy zatrzymane", color: Palette.green, icon: "stop.circle")
                 }
                 if let f = item.quarantinable.first {
                     Button {

@@ -90,6 +90,7 @@ struct LaptopScreen: View {
                     }
                 }
             }
+            DefenseToggleCard()
             StartBar()
         }
     }

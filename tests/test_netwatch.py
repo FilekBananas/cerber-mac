@@ -145,9 +145,9 @@ class JudgeTest(unittest.TestCase):
         self.assertIn(it[0]["severity"], ("suspicious", "malicious"))
 
     def test_remote_login_session(self):
-        out = "jan    console  Oct  7 09:00\nadmin    ttys009  Oct  7 12:30 (198.51.100.40)\n"
+        out = "filip    console  Oct  7 09:00\nadmin    ttys009  Oct  7 12:30 (198.51.100.40)\n"
         with mock.patch.object(nw, "run", return_value=mock.Mock(ok=True, out=out)):
-            self.w.session_keys.add(("jan", "console", None, None))
+            self.w.session_keys.add(("filip", "console", None, None))
             self.w._check_sessions()
         it = [i for i in items(self.events) if "zdalne logowanie" in i["title"]]
         self.assertEqual(len(it), 1)

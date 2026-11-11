@@ -20,6 +20,7 @@ import shutil
 import sqlite3
 import subprocess
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from typing import Callable
@@ -33,7 +34,9 @@ from .engines.yara_engine import build_rules, split_rules
 Log = Callable[[str], None]
 
 YARAFORGE = "https://github.com/YARAHQ/yara-forge/releases/latest/download/yara-forge-rules-{tier}.zip"
-BAZAAR_FULL = "https://bazaar.abuse.ch/export/csv/full/"
+# abuse.ch exports (2026-10: keyless downloads return 410 Gone; the Auth-Key goes into the URL path)
+ABUSECH_EXPORT = "https://{platform}-api.abuse.ch/v2/files/exports/{key}/{name}"
+BAZAAR_FULL = "https://bazaar.abuse.ch/export/csv/full/"            # retired, kept for reference
 SIGBASE_ZIP = "https://github.com/Neo23x0/signature-base/archive/refs/heads/master.zip"
 URLHAUS = "https://urlhaus.abuse.ch/downloads/csv_recent/"
 THREATFOX = "https://threatfox.abuse.ch/export/csv/full/"
@@ -48,28 +51,103 @@ XPROTECT_DIRS = ["/var/protected/xprotect/XProtect.bundle/Contents/Resources",
                  "/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/Resources"]
 
 
+DOWNLOAD_ATTEMPTS = 6
+
+
+class IncompleteDownload(Exception):
+    pass
+
+
 def _download(url: str, dest: str, log: Log, timeout: int = 600) -> str:
+    """Download to dest.part, then replace dest. A dropped connection is retried and, when the server honours
+    Range requests, resumed where it stopped. The result must have the announced length and, for a .zip, be a
+    readable archive – otherwise dest (the last good copy) is left untouched."""
+    import http.client
+    import zipfile
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": config.USER_AGENT})
     tmp = dest + ".part"
     t0 = time.time()
-    with urllib.request.urlopen(req, timeout=timeout) as r, open(tmp, "wb") as fh:
-        total = int(r.headers.get("Content-Length") or 0)
-        done = 0
-        last = 0.0
-        while True:
-            chunk = r.read(1 << 20)
-            if not chunk:
-                break
-            fh.write(chunk)
-            done += len(chunk)
-            if time.time() - last > 2:
-                pct = f" {done * 100 // total}%" if total else ""
-                log(f"    … {done >> 20} MB{pct}")
-                last = time.time()
+    done, total = 0, 0
+    if os.path.exists(tmp):
+        os.remove(tmp)                         # a leftover from another run: its source may differ
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        headers = {"User-Agent": config.USER_AGENT}
+        if done:
+            headers["Range"] = f"bytes={done}-"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout) as r:
+                if done and r.status != 206:   # Range ignored: start over
+                    done = 0
+                length = int(r.headers.get("Content-Length") or 0)
+                if r.status == 206:
+                    rng = r.headers.get("Content-Range", "")
+                    total = int(rng.rsplit("/", 1)[1]) if "/" in rng and rng.rsplit("/", 1)[1].isdigit() \
+                        else done + length
+                else:
+                    total = length
+                last = 0.0
+                with open(tmp, "ab" if done else "wb") as fh:
+                    while True:
+                        chunk = r.read(1 << 20)
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+                        done += len(chunk)
+                        if time.time() - last > 2:
+                            pct = f" {done * 100 // total}%" if total else ""
+                            log(f"    … {done >> 20} MB{pct}")
+                            last = time.time()
+            if total and done != total:
+                raise IncompleteDownload(f"{done} z {total} bajtów")
+            break
+        except (http.client.IncompleteRead, IncompleteDownload, ConnectionError, TimeoutError, OSError) as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code not in (408, 429, 500, 502, 503, 504):
+                raise                          # 401/403/404/410: retrying will not help
+            if attempt == DOWNLOAD_ATTEMPTS:
+                raise
+            done = os.path.getsize(tmp) if os.path.exists(tmp) else 0
+            log(f"    połączenie przerwane ({type(exc).__name__}) – próba {attempt + 1}/{DOWNLOAD_ATTEMPTS}"
+                + (f", wznawiam od {done >> 20} MB" if done else ""))
+            time.sleep(min(30, 3 * attempt))
+    if dest.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(tmp) as zf:
+                bad = zf.testzip()
+        except zipfile.BadZipFile as exc:
+            bad = str(exc)
+        if bad is not None:
+            os.remove(tmp)
+            raise IncompleteDownload(f"uszkodzone archiwum ({bad})")
     os.replace(tmp, dest)
     log(f"    pobrano {os.path.basename(dest)}: {done >> 20} MB w {time.time() - t0:.0f}s")
     return dest
+
+
+def abusech_urls(platform: str, names: list[str]) -> list[str]:
+    """Export URLs to try for an abuse.ch platform (mb / urlhaus / threatfox); [] without a key."""
+    key = config.abusech_key()
+    return [ABUSECH_EXPORT.format(platform=platform, key=key, name=n) for n in names] if key else []
+
+
+def fetch_feed(urls: list[str], dest: str, log: Log, label: str, max_age_h: float = 12) -> str:
+    """Download the first URL that works into `dest`. If none works, fall back to the copy already on disk
+    (log its age) instead of building the database without this source; raise only when there is no copy.
+    URLs may carry the abuse.ch key: they are never written to the log."""
+    if os.path.exists(dest) and time.time() - os.path.getmtime(dest) < max_age_h * 3600:
+        return dest
+    errors = []
+    for url in urls:
+        try:
+            return _download(url, dest, log)
+        except Exception as exc:  # noqa: BLE001
+            code = getattr(exc, "code", None)
+            errors.append(f"HTTP {code}" if code else type(exc).__name__)
+    why = ", ".join(errors) if errors else "brak klucza abuse.ch (CERBER_ABUSECH_KEY lub plik abusech.key)"
+    if os.path.exists(dest):
+        age = (time.time() - os.path.getmtime(dest)) / 86400
+        log(f"    {label}: nie udało się pobrać ({why}) – używam kopii z dysku sprzed {age:.0f} dni")
+        return dest
+    raise RuntimeError(f"{label}: nie udało się pobrać ({why}) i brak kopii na dysku")
 
 
 # ------------------------------------------------------------------ ClamAV
@@ -145,9 +223,8 @@ def tlsh_lval(t: str) -> int | None:
 
 def update_bazaar(db: HashDB, log: Log) -> int:
     dest = os.path.join(config.FEEDS, "bazaar_full.zip")
-    if not os.path.exists(dest) or time.time() - os.path.getmtime(dest) > 12 * 3600:
-        log("  MalwareBazaar: pobieranie pełnego zrzutu (~220 MB) …")
-        _download(BAZAAR_FULL, dest, log)
+    log("  MalwareBazaar: pełny zrzut (~220 MB) …")
+    fetch_feed(abusech_urls("mb", ["full.csv.zip", "full.zip"]), dest, log, "MalwareBazaar")
     rows, tl = [], []
     n = 0
     with zipfile.ZipFile(dest) as z:
@@ -348,7 +425,7 @@ def update_ioc(log: Log) -> int:
     try:
         dest = os.path.join(config.FEEDS, "urlhaus_recent.csv")
         log("  URLhaus: pobieranie …")
-        _download(URLHAUS, dest, log)
+        fetch_feed(abusech_urls("urlhaus", ["recent.csv"]), dest, log, "URLhaus")
         rows = []
         with open(dest, encoding="utf-8", errors="replace") as fh:
             for row in csv.reader(line for line in fh if not line.startswith("#")):
@@ -369,7 +446,7 @@ def update_ioc(log: Log) -> int:
     try:
         dest = os.path.join(config.FEEDS, "threatfox_full.zip")
         log("  ThreatFox: pobieranie …")
-        _download(THREATFOX, dest, log)
+        fetch_feed(abusech_urls("threatfox", ["full.csv.zip", "full.zip"]), dest, log, "ThreatFox")
         rows = []
         with zipfile.ZipFile(dest) as z:
             name = next(i for i in z.namelist() if i.endswith(".csv"))
@@ -521,17 +598,21 @@ def update_all(log: Log = print, clamav=True, bazaar=True, sigbase=True, yara_ru
         if os.path.exists(tmp):
             os.remove(tmp)
         db = HashDB(tmp, readonly=False)
-        try:
-            summary["clamav_hashes"] = import_clamav_hashes(db, log)
-            if bazaar:
-                summary["bazaar"] = update_bazaar(db, log)
-            if sigbase:
-                summary["sigbase"] = update_sigbase(db, log)
-            if machashes:
-                from .feeds_macos import import_macos_hashes
-                summary["macos_feeds"] = import_macos_hashes(db, log)
-        except Exception as exc:  # noqa: BLE001
-            log(f"  BŁĄD bazy hashy: {exc!r}")
+
+        def macos_feeds(db, log):
+            from .feeds_macos import import_macos_hashes
+            return import_macos_hashes(db, log)
+        # one failing source must not take the others down with it (a 410 from MalwareBazaar used to skip
+        # signature-base and the macOS feeds too)
+        parts = [("clamav_hashes", import_clamav_hashes, True), ("bazaar", update_bazaar, bazaar),
+                 ("sigbase", update_sigbase, sigbase), ("macos_feeds", macos_feeds, machashes)]
+        for key, fn, on in parts:
+            if not on:
+                continue
+            try:
+                summary[key] = fn(db, log)
+            except Exception as exc:  # noqa: BLE001
+                log(f"  BŁĄD bazy hashy ({key}): {exc!r}")
         now = time.strftime("%Y-%m-%d %H:%M:%S")
         for k in ("clamav_hashes", "bazaar", "sigbase", "macos_feeds"):
             if k in summary:

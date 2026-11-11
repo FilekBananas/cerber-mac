@@ -5,7 +5,7 @@ as a child process and renders the events it prints.
 
 ```
 <ROOT>/.venv/bin/python -m cerber.gui_backend <command> [args] [--ai] [--fast]
-cwd = <ROOT>   (ROOT = the Cerber project folder, e.g. /Users/jan/Documents/antywirus)
+cwd = <ROOT>   (ROOT = the Cerber project folder, e.g. ~/Documents/antywirus)
 ```
 
 * **stdout**: JSON Lines, one event object per line (UTF-8). Nothing else is ever printed there.
@@ -354,8 +354,8 @@ older reports and non-Mega scans have no `monitor`.
  "remote_access": [{"name": "Udostępnianie ekranu", "kind": "macos_service|app|tunnel|mdm|ssh_keys|session",
                     "status": "enabled|running|installed|disabled|present", "detail": "…",
                     "risk": "info|low|suspicious|malicious"}],
- "sessions": [{"user": "jan", "tty": "ttys001", "from": "192.168.1.5" | null, "since": "…"}],
- "logins": [{"user": "jan", "tty": "ssh", "from": "203.0.113.5" | null, "when": "…", "remote": true}],
+ "sessions": [{"user": "filip", "tty": "ttys001", "from": "192.168.1.5" | null, "since": "…"}],
+ "logins": [{"user": "filip", "tty": "ssh", "from": "203.0.113.5" | null, "when": "…", "remote": true}],
  "syslog": null | SYSLOG, "lan": null | LAN, "certificates": null | [TRUSTED_CERT, …],   // deep part of the start audit
  "monitor": null | {                                    // live monitor during the rest of the scan (Mega)
    "started": "2026-10-07 12:00:01", "ended": "2026-10-07 13:10:00", "seconds": 4199, "polls": 700, "interval_s": 5,
@@ -389,7 +389,7 @@ SYSLOG = {"available": true, "reason": null | "polish text",          // availab
               "category": "xprotect|gatekeeper|remote_login|screen_sharing|login_failure|authorization|persistence|privacy",
               "title": "…", "detail": "…", "severity": "info|low|suspicious|pua|malicious", "process": "…"}]}   // ≤ 200, worst first
 
-LAN = {"gateway": {"ip": "172.20.10.1", "mac": "02:00:00:00:00:01", "interface": "en0", "mac_randomized": true},
+LAN = {"gateway": {"ip": "172.20.10.1", "mac": "22:37:a5:09:75:64", "interface": "en0", "mac_randomized": true},
   "wifi": {"interface": "en0", "connected": true, "security": "WPA3_SAE",
            "security_level": "open|wep|wpa|wpa2|wpa3|enterprise|owe|unknown", "security_label": "WPA3",
            "ssid": null, "source": "ipconfig"},
@@ -439,7 +439,16 @@ stdin, SIGTERM after 5 s). stdout events:
  "report": "/…/reports/watch-….html" | null, "time": "2026-10-06 22:50:12"}
 {"ev": "watch_notice", "title": "Cerber ✅ czysty", "subtitle": "…", "msg": "…", "level": "info|warning|error"}   // ready-made notification texts
 {"ev": "watch_alert", "title": "…", "msg": "…", "report": "…"}                        // confirmed malware (already quarantined if possible)
+{"ev": "watch_defense", "action": "quarantined|stopped|failed|skipped", "title": "…", "detail": "…",
+ "path": "…" | null, "qid": "id" | null, "pids": [4242], "time": "…"}                  // --defend: what the active defense did on its own
 ```
+
+`--defend` (off by default, the "Aktywna obrona" switch; includes `--quarantine`): a MALICIOUS file is quarantined and the
+processes running it are stopped (freeze → re-check → SIGKILL, children too); a live attack from the network guard with
+severity "malicious" + confidence "high" stops that process (cuts its connections) and quarantines its program/script.
+Never: macOS files, Apple-signed code, Cerber, other users' processes, essential session processes, programs signed by a
+known developer (interpreters excepted when stopping). At most 8 actions per 10 min. `flagged[]` items gain
+`"stopped": [pid, …]`. "Przywróć" runs `quarantine restore <id>`.
 
 `--net` (off by default, the "Nadzór sieci i zdalnego dostępu" switch) adds the network & remote-access guard:
 envscan.netwatch in guard mode inside the `env` sandbox (every 10 s: new connections – IOC addresses, scripts

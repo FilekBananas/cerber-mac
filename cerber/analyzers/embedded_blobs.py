@@ -8,6 +8,8 @@ WebAssembly, and zipped/Office templates. An executable hidden in text is always
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 
 from ..core import Analyzer, Confidence, Detection, ScanContext, ScanObject
@@ -34,6 +36,27 @@ _WEB_SCRIPT = {"html", "javascript", "json", "xml", "text"}
 _BUNDLE_EXT = {"js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "map", "json", "asar", "wasm", "node",
                "bundle", "chunk", "css"}
 _BUNDLE_FTYPES = {"javascript", "json", "binary", "unknown"}
+
+
+WHOLE_MIN = 64
+_WS = b"\r\n"                 # line breaks only: "config data follows" + base64 must not glue into "base64"
+_B64_WHOLE = re.compile(rb"[A-Za-z0-9+/]+={0,2}")
+_HEX_ONLY = re.compile(rb"[0-9a-fA-F]+")
+
+
+def _whole_file_base64(obj: ScanObject) -> bytes | None:
+    """Decoded bytes when the entire object (whitespace aside) is strict base64, else None.
+    Pure hex (checksums, keys) is base64-valid too and is left alone."""
+    if obj.size > MAX_BLOB or obj.size < WHOLE_MIN:
+        return None
+    raw = obj.data.translate(None, _WS)
+    if len(raw) < WHOLE_MIN or len(raw) % 4 or not _B64_WHOLE.fullmatch(raw) or _HEX_ONLY.fullmatch(raw):
+        return None
+    try:
+        out = base64.b64decode(raw, validate=True)
+    except (ValueError, binascii.Error):
+        return None
+    return out if len(out) >= 16 else None
 
 
 def _category(ft: str) -> str | None:
@@ -85,9 +108,25 @@ class EmbeddedBlobsAnalyzer(Analyzer):
     order = 60
 
     def applies(self, obj: ScanObject) -> bool:
-        return obj.size >= 256 and obj.ftype not in _SKIP_FTYPES
+        return obj.size >= WHOLE_MIN and obj.ftype not in _SKIP_FTYPES
 
     def analyze(self, obj: ScanObject, ctx: ScanContext) -> None:
+        whole = _whole_file_base64(obj)
+        if whole is not None:
+            # the whole file is one base64 text (a payload stage saved as .txt/.b64): scan what it decodes to,
+            # whatever the type; scored like any other blob (an executable hidden as text counts)
+            ft, desc = identify_bytes(whole[:1 << 20])
+            ctx.add_child(obj, whole, f"decoded/base64.{ft}", kind="decoded", meta={"encoding": "base64", "whole_file": True})
+            cat = _category(ft)
+            score = _score(cat, ft, desc, obj, 0, obj.size) if cat else 0
+            if score:
+                ctx.detect(obj, Detection(
+                    f"Heur:Embedded.Base64.{ft.upper()}", "heuristic",
+                    Confidence.HIGH if score >= 30 else Confidence.LOW, score,
+                    f"Base64-encoded {desc} embedded in {obj.ftype} content", [f"whole file, {len(whole)} bytes"]))
+            return
+        if obj.size < 256:
+            return
         data = obj.data[:MAX_SCAN]
         found = 0
         for enc, rx, dec in (("Base64", _B64, b64decode_loose), ("Hex", _HEX, hexdecode)):

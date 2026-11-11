@@ -33,8 +33,14 @@ def _stamp() -> str:
 
 
 def _opts_from_args(a) -> "ScanOptions":
+    from .scancache import enabled_for
     from .scanner import ScanOptions
     o = ScanOptions()
+    o.level = getattr(a, "level", None) or "deep"
+    if o.level == "quick":                      # same limits as the app's quick level
+        o.max_file_size, o.file_timeout = 256 << 20, 120
+    # scan memory (cerber/scancache.py): on by default for the signature levels quick/patterns, --no-cache rescans
+    o.cache = enabled_for(o.level) and not getattr(a, "no_cache", False)
     o.deep = not getattr(a, "fast", False)
     o.workers = getattr(a, "workers", 0) or 0
     o.ai = getattr(a, "ai", False)
@@ -76,11 +82,38 @@ def _env_to_dict(rep) -> dict:
             "limitations": list(rep.limitations)}
 
 
-def cmd_scan(a) -> int:
+def _scan(paths: list[str], opts) -> dict:
+    """scan_paths with the scan memory: the CLI is its own trusted parent – it computes the fingerprint, lets the
+    scanner list the files it found clean in a private side file and then verifies and stores them."""
     from .scanner import scan_paths
+    session = side = None
+    if opts.cache and opts.patterns_only:
+        from .scancache import ParentSession
+        try:
+            session = ParentSession(opts, paths)
+            side = session.local_side_file()
+            opts.cache_fp, opts.cache_record = session.fp_hex, side
+        except Exception as exc:  # noqa: BLE001 - a speed-up only: without it the scan checks every file
+            _log(f"Pamięć skanów niedostępna: {exc}")
+            session, opts.cache = None, False
+    try:
+        report = scan_paths(paths, opts, log=_log)
+    finally:
+        if session is not None:
+            stored = session.merge(side, _log)
+            try:
+                os.unlink(side)
+            except OSError:
+                pass
+    if session is not None:
+        report["cache_stored"] = stored
+    return report
+
+
+def cmd_scan(a) -> int:
     print(BANNER)
     opts = _opts_from_args(a)
-    report = scan_paths(a.paths, opts, log=_log)
+    report = _scan(a.paths, opts)
     _write_reports(report, a, None, "scan")
     return 2 if report["counts"].get("MALICIOUS") else (1 if report["counts"].get("SUSPICIOUS") else 0)
 
@@ -102,21 +135,19 @@ def run_env(a, log=_log) -> dict | None:
 
 
 def cmd_env(a) -> int:
-    from .scanner import scan_paths
     print(BANNER)
     env = run_env(a)
     if env is None:
         return 3
     opts = _opts_from_args(a)
     targets = [] if a.no_files else env["targets"]
-    report = scan_paths(targets, opts, log=_log) if targets else _empty_report()
+    report = _scan(targets, opts) if targets else _empty_report()
     _write_reports(report, a, env, "env")
     bad = any(f["score"] >= 50 for f in env["findings"])
     return 2 if report["counts"].get("MALICIOUS") or bad else 0
 
 
 def cmd_full(a) -> int:
-    from .scanner import scan_paths
     print(BANNER)
     env = run_env(a)
     paths = [os.path.expanduser(p) for p in (a.paths or DEFAULT_FULL_PATHS)]
@@ -124,7 +155,7 @@ def cmd_full(a) -> int:
     if env:
         paths += [t for t in env["targets"] if not any(t.startswith(p + "/") for p in paths)]
     opts = _opts_from_args(a)
-    report = scan_paths(paths, opts, log=_log)
+    report = _scan(paths, opts)
     _write_reports(report, a, env, "full")
     return 2 if report["counts"].get("MALICIOUS") else 0
 
@@ -189,6 +220,28 @@ def cmd_info(a) -> int:
     return 0
 
 
+def cmd_cache(a) -> int:
+    """Scan memory (cerber/scancache.py): `info` – how much is remembered, `clear` – forget everything (and the key)."""
+    from . import scancache
+    if a.action == "clear":
+        n = scancache.clear()
+        print(f"Pamięć skanów wyczyszczona ({n} plików usuniętych z {config.SCAN_CACHE_DIR}). "
+              "Kolejny skan sprawdzi wszystko od nowa.")
+        return 0
+    i = scancache.info()
+
+    def when(ts):
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else "–"
+    print(f"Pamięć skanów (pliki już sprawdzone jako czyste): {i['dir']}")
+    print(f"  wpisów            : {i['rows']:>12,}  (ważnych, młodszych niż 30 dni: {i['live']:,})")
+    print(f"  rozmiar na dysku  : {i['bytes'] / 1e6:>12.1f} MB")
+    print(f"  najstarszy wpis   : {when(i['oldest']):>16}")
+    print(f"  najnowszy wpis    : {when(i['newest']):>16}")
+    print(f"  konteksty (bazy/kod/poziom): {i['contexts']}  · klucz HMAC: {'jest' if i['key'] else 'brak'}")
+    print("  Używana tylko przez skany Szybki i Średni (--level quick|patterns); --no-cache skanuje wszystko.")
+    return 0
+
+
 def cmd_quarantine(a) -> int:
     from . import quarantine as q
     if a.action == "list":
@@ -203,6 +256,33 @@ def cmd_quarantine(a) -> int:
         q.delete(a.id)
         print("Usunięto", a.id)
     return 0
+
+
+def cmd_baseline(a) -> int:
+    """Learn / show the "normal behaviour" model of this Mac (cerber/envscan/baseline.py)."""
+    import shutil
+    import subprocess
+    from .envscan.baseline import Model, model_path
+    tool = os.path.join(config.ROOT, "tools", "learn_baseline.py")
+    if a.action == "status":
+        m = Model.load(model_path())
+        if m is None:
+            print("Model normalności: brak – naucz go: ./cerber.sh baseline learn --minutes 10")
+            return 1
+        print(f"Model normalności: {m.params:,} parametrów · {json.dumps(m.meta, ensure_ascii=False)}")
+        return 0
+    if a.action in ("learn", "collect"):
+        r = subprocess.run([os.path.join(config.ROOT, ".venv", "bin", "python"), tool, "collect",
+                            "--minutes", str(a.minutes)], cwd=config.ROOT)
+        if r.returncode or a.action == "collect":
+            return r.returncode
+    numpy_py = next((p for p in ("/opt/homebrew/bin/python3", "/usr/local/bin/python3", shutil.which("python3"))
+                     if p and os.path.exists(p) and subprocess.run([p, "-I", "-c", "import numpy"],
+                                                                   capture_output=True).returncode == 0), None)
+    if not numpy_py:
+        print("Do treningu potrzebny jest Python z numpy (np. brew install numpy) – próbki zostały zapisane.")
+        return 1
+    return subprocess.run([numpy_py, "-I", tool, "train"], cwd=config.ROOT).returncode
 
 
 def cmd_selftest(a) -> int:
@@ -236,6 +316,10 @@ def main(argv: list[str] | None = None) -> int:
         if paths:
             p.add_argument("paths", nargs="*" if p.prog.endswith("full") else "+", help="pliki / katalogi")
         p.add_argument("--fast", action="store_true", help="bez TLSH i najcięższych analiz")
+        p.add_argument("--level", choices=["quick", "patterns", "deep"], default="deep",
+                       help="quick/patterns: tylko sygnatury (szybko), deep: wszystkie analizy (domyślnie)")
+        p.add_argument("--no-cache", action="store_true",
+                       help="quick/patterns: nie pomijaj plików zapamiętanych jako czyste – skanuj wszystko")
         p.add_argument("--ai", action="store_true", help="analiza szarej strefy lokalnym modelem AI")
         p.add_argument("--ai-all", action="store_true", help="AI dla każdego pliku z jakimkolwiek znaleziskiem")
         p.add_argument("--workers", type=int, default=0, help="liczba procesów (domyślnie: rdzenie-1, max 8)")
@@ -274,11 +358,18 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_update)
     p = sub.add_parser("info", help="statystyki baz")
     p.set_defaults(fn=cmd_info)
+    p = sub.add_parser("cache", help="pamięć skanów (pliki już sprawdzone jako czyste): info | clear")
+    p.add_argument("action", choices=["info", "clear"])
+    p.set_defaults(fn=cmd_cache)
     p = sub.add_parser("quarantine", help="zarządzanie kwarantanną")
     p.add_argument("action", choices=["list", "restore", "delete"])
     p.add_argument("id", nargs="?")
     p.add_argument("--to", help="restore: ścieżka docelowa")
     p.set_defaults(fn=cmd_quarantine)
+    p = sub.add_parser("baseline", help="model normalności tego Maca (mała sieć neuronowa, uczy się tylko tutaj)")
+    p.add_argument("action", choices=["learn", "collect", "train", "status"])
+    p.add_argument("--minutes", type=float, default=10, help="learn/collect: jak długo obserwować (min)")
+    p.set_defaults(fn=cmd_baseline)
     p = sub.add_parser("selftest", help="test działania (EICAR)")
     p.add_argument("--samples", action="store_true", help="skanuj też próbki testowe z tests/samples")
     p.add_argument("--workers", type=int, default=0)

@@ -287,6 +287,11 @@ class MacOSTrustAnalyzer(Analyzer):
             if w:
                 res["where_froms"] = w
         if not is_macho:
+            low = path.lower()
+            if low.endswith(".dmg"):
+                self._container_dmg(ctx, path, res)
+            elif low.endswith((".pkg", ".mpkg")):
+                self._container_pkg(ctx, path, res)
             return res
         cs_tool = ctx.tool("codesign") or shutil.which("codesign")
         if not cs_tool:
@@ -327,6 +332,37 @@ class MacOSTrustAnalyzer(Analyzer):
             res.pop("_trusted", None)
             res.pop("trusted_signer", None)
         return res
+
+    @staticmethod
+    def _container_dmg(ctx: ScanContext, path: str, res: dict) -> None:
+        """A disk image can carry its own Developer ID signature (`codesign` signs DMGs): a valid one chaining
+        to Apple makes the installer trusted as a whole, so context hints about "downloaded, unsigned" do not
+        fire on it. The apps inside are still scanned and judged on their own."""
+        cs_tool = ctx.tool("codesign") or shutil.which("codesign")
+        if not cs_tool:
+            return
+        cs = codesign_info(cs_tool, path)
+        if cs.get("state") in ("unsigned", "adhoc"):
+            return
+        ver = codesign_verify(cs_tool, path)
+        trusted = _trusted(cs, ver)
+        if trusted and not ver.get("revoked"):
+            res["_trusted"] = res["trusted_signer"] = trusted
+
+    @staticmethod
+    def _container_pkg(ctx: ScanContext, path: str, res: dict) -> None:
+        """Installer packages are signed with a "Developer ID Installer" certificate (`pkgutil --check-signature`)."""
+        tool = shutil.which("pkgutil")
+        if not tool:
+            return
+        rc, out = _run([tool, "--check-signature", path], CODESIGN_TIMEOUT)
+        if rc != 0 or "signed by a developer certificate issued by apple" not in out.lower() \
+                and "signed by a certificate trusted by mac os x" not in out.lower() \
+                and "signed apple software" not in out.lower():
+            return
+        m = re.search(r"1\.\s+(Developer ID Installer:[^\n]+|Apple Software Update[^\n]*|Software Update[^\n]*)", out)
+        if m and "revoked" not in out.lower():
+            res["_trusted"] = res["trusted_signer"] = m.group(1).strip()
 
     @staticmethod
     def _detections(obj: ScanObject, ctx: ScanContext, res: dict) -> None:

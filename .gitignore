@@ -4,6 +4,7 @@ db/
 models/
 reports/
 quarantine/
+scancache/
 *.gguf
 *.log
 *.app/
@@ -23,3 +24,11 @@ __pycache__/
 tests/static_measure/exclude.local.txt
 tests/static_measure/clean_files.json
 tests/static_measure/results/
+tests/benchmark/heldout_files.json
+tests/benchmark/results/
+db/ml/
+abusech.key
+tests/benchmark/run-*.log
+
+# bezpieczny benchmark: pobrane pliki testowe AMTSO/EICAR i wygenerowane kontenery
+tests/benchmark/safe_samples/

@@ -116,6 +116,29 @@ struct AIToggleCard: View {
     }
 }
 
+/// "Aktywna obrona" for laptop / location / file scans – the same switch as in background protection.
+struct DefenseToggleCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let p = model.protection
+        Toggle(isOn: Binding(get: { p.activeDefense }, set: { p.setActiveDefense($0) })) {
+            HStack(spacing: 12) {
+                SoftIcon(systemName: "shield.lefthalf.filled", color: Palette.green, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Aktywna obrona").font(.system(size: 13.5, weight: .semibold))
+                    Text("Pewne zagrożenia znalezione w trakcie skanu od razu trafiają do kwarantanny, a uruchomione z nich procesy są zatrzymywane (zrywa to ich połączenia; w Mega także ataki wykryte na żywo). Nigdy nie rusza systemu macOS, aplikacji Apple, Cerbera ani programów znanych producentów. Każde działanie można cofnąć. Ten sam przełącznik co w Ochronie w tle.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .toggleStyle(SwitchToggleStyle())
+        .card(padding: 16, radius: 16)
+    }
+}
+
 // MARK: - Drop zone
 
 struct DropZone: View {

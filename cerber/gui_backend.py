@@ -53,6 +53,9 @@ class Emitter:
 
 emit: Emitter
 SCAN_ROOTS: list[str] = []          # quarantine is only offered for files under what the user asked to scan
+DEFENDER = None                     # --defend (laptop / location scans): cerber.defense.Defender
+DEFENDED: dict[str, dict] = {}      # path -> what the defender did (streamed finding and final result share it)
+NO_CACHE = False                    # --no-cache: laptop quick/patterns scans rescan everything (cerber/scancache.py)
 from .report import QUARANTINE_SCORE, high_risk  # noqa: E402,F401 - one rule for app and reports
 
 
@@ -144,6 +147,8 @@ def make_opts(level: str, ai: bool):
     # among the laptop levels only Mega uses AI; target scans use it only when the app passes --ai
     o = ScanOptions(deep=True, level=level, defer_ai=ai or level == "mega")
     o.collect_cloud = level == "mega"          # Mega downloads risky cloud-only files (run_cloud_step)
+    from .scancache import enabled_for
+    o.cache = enabled_for(level) and not NO_CACHE  # laptop quick/patterns only; target scans always scan fully
     if level == "quick":
         o.max_file_size = 256 << 20
         o.file_timeout = 120
@@ -211,6 +216,71 @@ def child_event(ev, allowed: frozenset = CHILD_EVENTS) -> dict | None:
     return None
 
 
+# ------------------------------------------------------------------ active defense during scans (--defend)
+
+def _in_roots(path: str) -> bool:
+    return any(path == root or path.startswith(root.rstrip("/") + "/") for root in SCAN_ROOTS)
+
+
+def _defense_event(ev: dict) -> None:
+    emit(ev)
+    if ev.get("qid") and ev.get("path"):
+        emit({"ev": "quarantined", "path": ev["path"], "id": ev["qid"]})
+    log(f"Aktywna obrona: {ev.get('title')} – {ev.get('detail')}")
+
+
+def defend_result(r: dict) -> None:
+    """A MALICIOUS file on the real disk, under what the user asked to scan → quarantine + stop its processes.
+    Called while results stream in and once more after the behaviour step (never because of the AI: it runs later
+    and only adds or subtracts a few points – owner's rule)."""
+    if DEFENDER is None or r.get("verdict") != "MALICIOUS" or r.get("quarantined"):
+        return
+    from .verdict import ml_decisive
+    if ml_decisive(r):              # MALICIOUS only thanks to the ML hint: report it, never act on it
+        return
+    path = r.get("path")
+    if not isinstance(path, str):
+        return
+    d = DEFENDED.get(path)
+    if d is None:
+        if not os.path.isfile(path) or os.path.islink(path) or not _in_roots(path):
+            return
+        try:
+            d = DEFENDED[path] = DEFENDER.on_malicious_file(path, r)
+        except Exception as exc:  # noqa: BLE001 - the defense must never break the scan
+            DEFENDED[path] = {}
+            log(f"Aktywna obrona: błąd {exc!r}")
+            return
+    if d.get("quarantined"):
+        r["quarantined"] = d["quarantined"]
+    if d.get("stopped"):
+        r["stopped"] = [x["pid"] for x in d["stopped"]]
+
+
+def defend_live(item: dict) -> None:
+    """A live attack (Mega monitor, or the environment scan's live checks) with confidence "high"."""
+    if DEFENDER is None:
+        return
+    try:
+        DEFENDER.on_live_attack(item)
+    except Exception as exc:  # noqa: BLE001
+        log(f"Aktywna obrona: błąd {exc!r}")
+
+
+def defend_env(env: dict | None) -> None:
+    """Live attack findings of the environment scan (remote shells, secret stores held open): details carry
+    pid / exe / attack / confidence; the defender re-checks that the pid still runs that program."""
+    if DEFENDER is None or not env:
+        return
+    for f in ((env.get("_raw") or {}).get("findings") or []):
+        det = f.get("details") if isinstance(f, dict) else None
+        if not isinstance(det, dict) or det.get("confidence") != "high" or not det.get("attack"):
+            continue
+        defend_live({"severity": "malicious", "confidence": "high", "attack": det.get("attack"),
+                     "pid": det.get("pid") if isinstance(det.get("pid"), int) else None, "exe": det.get("exe"),
+                     "target": det.get("target"), "title": str(f.get("title") or "")[:300]})
+
+
 def _relay(sandboxed: bool):
     def relay(ev: dict) -> None:
         ev = child_event(ev)
@@ -221,6 +291,8 @@ def _relay(sandboxed: bool):
             try:
                 if not isinstance(item, dict) or not isinstance(item.get("path"), str):
                     raise TypeError("item")
+                if not sandboxed:
+                    defend_result(item)
                 ev = {"ev": "finding", "item": public_result(item, sandboxed=sandboxed)}
             except (KeyError, TypeError, AttributeError, ValueError):
                 print("Cerber: odrzucono nieprawidłowe znalezisko z sandboksa", file=sys.stderr)
@@ -250,7 +322,10 @@ class LiveWatch:
         if kind == "net_event":
             if isinstance(ev.get("item"), dict):
                 from .watch import clean_net_item       # known keys, plain types, bounded lengths
-                emit({"ev": "net_event", "item": clean_net_item(ev["item"])})
+                item = clean_net_item(ev["item"])
+                emit({"ev": "net_event", "item": item})
+                if item["severity"] == "malicious":
+                    defend_live(item)
             return
         if kind == "watch_target":
             p = ev.get("path")
@@ -324,6 +399,18 @@ class LiveWatch:
         return self.result
 
 
+def _cache_session(paths: list[str], opts):
+    """Scan memory (cerber/scancache.py): the fingerprint is computed HERE, in the unsandboxed parent."""
+    if not (opts.cache and opts.patterns_only):
+        return None
+    from .scancache import ParentSession
+    try:
+        return ParentSession(opts, paths)
+    except Exception as exc:  # noqa: BLE001 - a speed-up only: without it the scan simply checks every file
+        log(f"Pamięć skanów niedostępna: {exc}")
+        return None
+
+
 def run_file_scan(paths: list[str], opts, cancel: "Cancel", live: "LiveWatch | None" = None,
                   quiet: bool = False) -> dict:
     """Files/folders in place – inside the read-only `scan` sandbox. `live`: new files the Mega live watch
@@ -331,6 +418,7 @@ def run_file_scan(paths: list[str], opts, cancel: "Cancel", live: "LiveWatch | N
     from .sandbox import new_workspace, remove_workspace, run_inner
     if _sandbox_disabled():
         return _run_file_scan_direct(paths, opts)
+    cache = _cache_session(paths, opts)
     work = new_workspace()
     relay = _relay(False)
     if quiet:
@@ -342,7 +430,8 @@ def run_file_scan(paths: list[str], opts, cancel: "Cancel", live: "LiveWatch | N
             stage("sandbox", "Uruchamianie sandboksa (dysk tylko do odczytu, bez sieci)…")
         job = {"paths": paths, "level": opts.level, "ai": opts.defer_ai, "exclude": opts.exclude,
                "max_file_size": opts.max_file_size, "file_timeout": opts.file_timeout, "follow": live is not None,
-               "collect_cloud": opts.collect_cloud}
+               "collect_cloud": opts.collect_cloud, "cache": cache is not None,
+               "cache_fp": cache.fp_hex if cache is not None else ""}
         jp = os.path.join(work, "in", "job.json")
         with open(jp, "w") as fh:
             json.dump(job, fh)
@@ -355,6 +444,10 @@ def run_file_scan(paths: list[str], opts, cancel: "Cancel", live: "LiveWatch | N
         finally:
             if live is not None:
                 live.detach((report or {}).get("extra_scanned"))
+        if isinstance(report, dict) and cache is not None:
+            # the child only listed what it found clean; every row is re-checked against the disk here
+            from .scancache import SIDE_NAME
+            report["cache_stored"] = cache.merge(os.path.join(work, "out", SIDE_NAME), log)
         if report is None:
             report = _empty_report(cancelled=cancel.set)
         report["sandbox_verified"] = _read_selfcheck(work, "scan")
@@ -367,13 +460,19 @@ def run_file_scan(paths: list[str], opts, cancel: "Cancel", live: "LiveWatch | N
 
 def _run_file_scan_direct(paths: list[str], opts) -> dict:
     """Debug fallback (CERBER_NO_SANDBOX=1): same scan without isolation."""
+    import dataclasses
     from .scanner import load_engines, scan_paths
     stage("load", "Ładowanie baz sygnatur (7 mln wzorców)…")
     bundle = load_engines(opts, log)
     found: list[dict] = []
+    cache = _cache_session(paths, opts)
+    side = cache.local_side_file() if cache is not None else ""
+    if cache is not None:
+        opts = dataclasses.replace(opts, cache_fp=cache.fp_hex, cache_record=side)
 
     def on_result(r: dict) -> None:
         found.append(r)
+        defend_result(r)
         emit({"ev": "finding", "item": public_result(r)})
 
     try:
@@ -383,6 +482,13 @@ def _run_file_scan_direct(paths: list[str], opts) -> dict:
         rep = _empty_report(cancelled=True)
         rep["results"] = found
         return rep
+    finally:
+        if cache is not None:
+            cache.merge(side, log)
+            try:
+                os.unlink(side)
+            except OSError:
+                pass
 
 
 def _isolation(*kinds: str, verified: list[str] | None = None) -> dict:
@@ -501,6 +607,7 @@ def finish(mode: str, level: str, title: str, report: dict, t0: float, started: 
         "finished": time.strftime("%Y-%m-%d %H:%M:%S"), "seconds": round(time.time() - t0, 1),
         "cancelled": bool(report.get("cancelled")), "verdict": verdict,
         "files": report.get("files", 0), "bytes": report.get("bytes", 0), "objects": report.get("objects", 0),
+        "cache_hits": report.get("cache_hits", 0),
         "patterns_total": report.get("patterns_total", 0), "counts": counts, "results": results,
         "skipped": report.get("skipped_count", 0), "cloud_only": report.get("cloud_only", 0),
         "cloud_fetch": report.get("cloud_fetch"),
@@ -582,6 +689,7 @@ def cmd_scan(a) -> int:
     opts.defer_ai = a.ai
     report = run_file_scan(paths, opts, cancel)
     run_behavior_step(report, cancel)
+    _defend_sweep(report)
     if not report.get("cancelled"):
         run_ai_step(report, opts)
     title = os.path.basename(paths[0].rstrip("/")) or paths[0] if len(paths) == 1 else f"{len(paths)} elementów"
@@ -737,6 +845,9 @@ def _env_scan(level: str, cancel: "Cancel") -> tuple[dict | None, dict | None]:
                 with open(os.path.join(pre, precomputed_key(list(argv)) + ".json"), "w") as fh:
                     json.dump({"rc": r.rc, "out": r.out, "err": r.err, "timed_out": r.timed_out,
                                "missing": r.missing}, fh)
+        # keyboard event taps: CGGetEventTapList needs the WindowServer, which the env profile denies
+        from .envscan.eventtaps import precompute as precompute_event_taps
+        precompute_event_taps(pre)
         os.environ["CERBER_PRECOMPUTED"] = pre
         data = run_inner(work, "env", ["inner-env", "--work", work, "--level", level], _relay(False), cancel.event,
                          out_name="env.json", wall=1800)
@@ -784,6 +895,7 @@ def cmd_laptop(a) -> int:
     if level in ("deep", "mega"):
         try:
             env, network = _env_scan(level, cancel)
+            defend_env(env)
         except Exception as exc:  # noqa: BLE001
             emit({"ev": "error", "fatal": False, "msg": f"Skan środowiska nie powiódł się: {exc!r}"})
         if cancel.set:
@@ -822,6 +934,7 @@ def cmd_laptop(a) -> int:
     fetched = run_cloud_step(report, opts, cancel) if level == "mega" else []
     if level in ("deep", "mega"):
         run_behavior_step(report, cancel)
+    _defend_sweep(report)
     if not report.get("cancelled") and opts.defer_ai:
         run_ai_step(report, opts)
     if fetched:                                 # after the behaviour step, which still reads the files
@@ -829,7 +942,11 @@ def cmd_laptop(a) -> int:
     if live is not None:
         env, network = _merge_live(live, env, network)
     if env is not None and not report.get("cancelled"):
+        before = {r.get("path"): r.get("verdict") for r in report.get("results") or []}
         run_correlation(report, env, network)
+        # programs the correlation (process + network + autostart + files) proved malicious – not the AI
+        _defend_sweep(report, only=[r for r in report.get("results") or []
+                                    if r.get("verdict") == "MALICIOUS" and before.get(r.get("path")) != "MALICIOUS"])
     for r in report.get("results", []):
         r.pop("ai_context", None)
     kinds = ("scan", "env") if env is not None else ("scan",)
@@ -841,6 +958,13 @@ def cmd_laptop(a) -> int:
            results=[public_result(r) for r in report["results"]], env=env, network=network,
            sandbox=_isolation(*kinds, verified=verified))
     return 130 if report.get("cancelled") else 0
+
+
+def _defend_sweep(report: dict, only: list[dict] | None = None) -> None:
+    if DEFENDER is None or report.get("cancelled"):
+        return
+    for r in (only if only is not None else report.get("results") or []):
+        defend_result(r)
 
 
 def run_correlation(report: dict, env: dict, network: dict | None) -> None:
@@ -1031,12 +1155,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--level", default="deep", choices=["quick", "patterns", "deep", "mega"])
     ap.add_argument("--ai", action="store_true")
     ap.add_argument("--make-backup", action="store_true", help="iphone scan: create a fresh backup first")
+    ap.add_argument("--defend", action="store_true",
+                    help="laptop / scan: active defense – certain malware is quarantined and its processes stopped")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="laptop quick/patterns: ignore the scan memory and scan every file again")
     a = ap.parse_args(argv)
     # the app cancels with SIGINT; a parent may have started us with SIGINT ignored (Python keeps that)
     signal.signal(signal.SIGINT, signal.default_int_handler)
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     emit = Emitter()
     config.ensure_dirs()
+    global DEFENDER, NO_CACHE
+    NO_CACHE = a.no_cache
+    if a.defend and a.command in ("scan", "laptop"):
+        from .defense import Defender
+        DEFENDER = Defender(_defense_event, quarantine=True, kill=True)
+        log("Aktywna obrona włączona: pewne zagrożenia trafią od razu do kwarantanny, ich procesy zostaną zatrzymane")
     if a.command in ("scan", "sandbox", "github", "huggingface", "url", "laptop"):
         from .sandbox import cleanup_stale
         cleanup_stale()

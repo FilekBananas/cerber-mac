@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from cerber import config
 from cerber import feeds_macos as fm
 from cerber.engines.hashdb import SRC_MACOS, HashDB
 
@@ -72,7 +73,9 @@ class DriverTests(unittest.TestCase):
                 res = fm.import_macos_hashes(db, lambda m: None)
             self.assertEqual(res, {"ok": 1, "boom": 0})       # existing digest not duplicated
             self.assertEqual(fm.mac_total(db), 1)
-            with mock.patch.dict(os.environ, {}, clear=False):
+            # offline: no key from the environment *or* from the owner's abusech.key file
+            with mock.patch.dict(os.environ, {}, clear=False), \
+                    mock.patch.object(config, "ABUSECH_KEY_FILE", os.path.join(td, "no-such.key")):
                 os.environ.pop("CERBER_OTX_KEY", None)
                 os.environ.pop("CERBER_ABUSECH_KEY", None)
                 self.assertEqual(fm.import_otx(db, lambda m: None), 0)

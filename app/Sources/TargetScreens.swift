@@ -18,6 +18,7 @@ struct FileScreen: View {
                      onDrop: { model.scanPaths($0, origin: .file) })
                 .disabled(model.isScanning)
             AIToggleCard()
+            DefenseToggleCard()
             HStack(spacing: 14) {
                 FeatureTile(icon: "scope", title: "Zawsze dokładnie",
                             text: "Wszystkie heurystyki, deobfuskacja i sprawdzanie podpisów kodu.")
@@ -92,6 +93,7 @@ struct LocationScreen: View {
             }
             .disabled(model.isScanning)
             AIToggleCard()
+            DefenseToggleCard()
         }
     }
 }

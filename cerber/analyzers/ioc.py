@@ -45,8 +45,17 @@ _EMAIL = re.compile(r"(?i)\b([a-z0-9._%+-]{1,64}@(?:[a-z0-9-]{1,63}\.){1,4}[a-z]
 _ONION = re.compile(r"(?i)\b([a-z2-7]{16}\.onion|[a-z2-7]{56}\.onion)\b")
 _BTC = re.compile(r"(?<![\w$])(bc1[02-9ac-hj-np-z]{11,71}|[13][1-9A-HJ-NP-Za-km-z]{25,34})(?![\w$])")
 _ETH = re.compile(r"(?<![\w$])(0x[a-fA-F0-9]{40})(?![\w$])")
+_IPV6_HINT = re.compile(r":[0-9a-fA-F]{0,4}:")        # every _IPV6 match has two colons at most 4 hex digits apart
 _XMR = re.compile(r"(?<![\w$])([48][1-9A-HJ-NP-Za-km-z]{94})(?![\w$])")
 _TG_TOKEN = re.compile(r"\b(\d{8,10}:[A-Za-z0-9_-]{35})\b")
+
+
+def _tg_token_plausible(tok: str) -> bool:
+    """A bot token's secret is random; font subsets and charset tables produce look-alikes made of alphabet
+    runs ("12456789:ABCDEFGHIJQUVWXYZbcdefghij…"). Random text has ~0.5 consecutive-character steps in 35."""
+    secret = tok.split(":", 1)[1]
+    steps = sum(1 for a, b in zip(secret, secret[1:]) if ord(b) - ord(a) == 1)
+    return steps < 6 and len(set(secret)) >= 15
 _TG_API = re.compile(r"(?i)(api\.telegram\.org/bot[0-9]{6,}:[A-Za-z0-9_-]{30,})")
 _DISCORD = re.compile(r"(?i)(https?://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d{15,20}/[\w-]{60,80})")
 
@@ -303,6 +312,8 @@ def _wallets(text: str) -> list[tuple[str, int]]:
     for rx, ok in ((_BTC, lambda a, p: _bech32_ok(a) if a.startswith("bc1") else _btc_base58_ok(a)),
                    (_ETH, eth),
                    (_XMR, lambda a, p: keccak_ok(_xmr_ok, a))):
+        if rx is _ETH and "0x" not in text:
+            continue
         n = 0
         for m in rx.finditer(text):
             a = m.group(1)
@@ -322,9 +333,12 @@ def _wallets(text: str) -> list[tuple[str, int]]:
 
 
 def _extract(text: str) -> tuple[dict[str, list[str]], list[tuple[str, int]]]:
+    # Each regex below runs only when a literal its every match must contain is present (a substring test
+    # is ~50x cheaper than a regex pass): exactly the same results, a fraction of the time on normal files.
     bag: dict[str, list[str]] = {}
     urls = []
-    for m in _URL.finditer(text):
+    low = text.lower()
+    for m in (_URL.finditer(text) if "://" in text else ()):
         u = m.group(1).rstrip(".,);]'\"")
         urls.append(u)
         _add(bag, "url", u)
@@ -339,7 +353,7 @@ def _extract(text: str) -> tuple[dict[str, list[str]], list[tuple[str, int]]]:
             _add(bag, "shortener", u)
         if len(bag.get("url", ())) >= CAP:
             break
-    for m in _EMAIL.finditer(text):
+    for m in (_EMAIL.finditer(text) if "@" in text else ()):
         if _valid_domain(m.group(1).split("@", 1)[1]):
             _add(bag, "email", m.group(1))
     email_hosts = {e.split("@", 1)[1].lower() for e in bag.get("email", ())}
@@ -353,12 +367,17 @@ def _extract(text: str) -> tuple[dict[str, list[str]], list[tuple[str, int]]]:
             _add(bag, "domain", d)
     for m in _IPV4.finditer(text):
         _add(bag, "ip", m.group(1))
-    for m in _IPV6.finditer(text):
+    for m in (_IPV6.finditer(text) if _IPV6_HINT.search(text) else ()):
         if m.group(1).count(":") >= 2 and not re.fullmatch(r"(?:0{0,4}:){2,}0{0,4}", m.group(1)):
             _add(bag, "ipv6", m.group(1))
-    for rx, key in ((_ONION, "onion"), (_TG_TOKEN, "telegram_token"), (_TG_API, "telegram_token"),
-                    (_DISCORD, "discord_webhook")):
+    for rx, key, need in ((_ONION, "onion", ".onion"), (_TG_TOKEN, "telegram_token", ":"),
+                          (_TG_API, "telegram_token", "api.telegram.org/bot"),
+                          (_DISCORD, "discord_webhook", "/api/webhooks/")):
+        if need not in low:
+            continue
         for m in rx.finditer(text):
+            if rx is _TG_TOKEN and not _tg_token_plausible(m.group(1)):
+                continue
             _add(bag, key, m.group(1))
     wallets = _wallets(text)
     for a, _ in wallets:

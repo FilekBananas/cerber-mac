@@ -190,6 +190,8 @@ final class ScanSession: Identifiable {
     var netStatus: NetMonitorStatus?
     /// Live monitor events, newest first, capped at `netEventCap`.
     var netEvents: [NetEvent] = []
+    /// `--defend`: what the active defense did on its own during this scan.
+    var defenseLog: [DefenseAction] = []
     static let netEventCap = 300
     var fatalMessage: String?
     var exitCode: Int32?
@@ -290,7 +292,12 @@ final class ScanSession: Identifiable {
                 if netEvents.count > Self.netEventCap { netEvents.removeLast(netEvents.count - Self.netEventCap) }
                 if e.isAlert { appendLog("Sieć na żywo: " + e.title, stderr: false) }
             }
-        case .info, .history, .aiInstalled, .apiReady, .watch, .iphone, .unknown:
+        case .watch(let w):
+            if w.ev == "watch_defense", let d = w.defense {
+                defenseLog.append(d)
+                appendLog("🛡️ Aktywna obrona: \(d.title) – \(d.detail)", stderr: false)
+            }
+        case .info, .history, .aiInstalled, .apiReady, .iphone, .unknown:
             break
         }
     }
@@ -563,12 +570,15 @@ final class AppModel {
 
     private func flags(ai: Bool) -> [String] { ai ? ["--ai"] : [] }
 
+    /// "Aktywna obrona" (one switch for background protection, laptop and location scans).
+    private var defendFlag: [String] { protection.activeDefense ? ["--defend"] : [] }
+
     func scanPaths(_ urls: [URL], origin: SidebarItem) {
         let paths = urls.map { $0.standardizedFileURL.path }
         guard !paths.isEmpty else { return }
         let first = (paths[0] as NSString).lastPathComponent
         let title = paths.count == 1 ? first : "\(first) i \(Fmt.count(paths.count - 1, "inny", "inne", "innych"))"
-        start(ScanRequest(mode: .scan, arguments: ["scan"] + paths + flags(ai: aiEnabled), title: title,
+        start(ScanRequest(mode: .scan, arguments: ["scan"] + paths + flags(ai: aiEnabled) + defendFlag, title: title,
                           level: .deep, ai: aiEnabled, origin: origin))
     }
 
@@ -595,7 +605,7 @@ final class AppModel {
     func scanLaptop() {
         // Mega always includes AI when the model can run; it is passed explicitly.
         let ai = level.includesAI && aiAvailable
-        start(ScanRequest(mode: .laptop, arguments: ["laptop", "--level", level.rawValue] + flags(ai: ai),
+        start(ScanRequest(mode: .laptop, arguments: ["laptop", "--level", level.rawValue] + flags(ai: ai) + defendFlag,
                           title: "Laptop – \(level.label)", level: level, ai: ai, origin: .laptop))
     }
 

@@ -146,16 +146,16 @@ destination: default
  recvpipe  sendpipe  ssthresh  rtt,msec    rttvar  hopcount      mtu     expire
        0         0         0         0         0         0      1500         0
 """
-ARP_CLEAN = """? (192.168.1.1) at 00:00:5e:00:53:04 on en0 ifscope [ethernet]
-? (192.168.1.28) at 00:00:5e:00:53:05 on en0 ifscope [ethernet]
+ARP_CLEAN = """? (192.168.1.1) at c4:ad:34:25:b2:a0 on en0 ifscope [ethernet]
+? (192.168.1.28) at 60:22:32:2c:b0:51 on en0 ifscope [ethernet]
 ? (192.168.1.29) at (incomplete) on en0 ifscope [ethernet]
-? (192.168.1.40) at 02:00:00:00:00:06 on en0 ifscope [ethernet]
-? (192.168.1.41) at 02:00:00:00:00:06 on en0 ifscope [ethernet]
+? (192.168.1.40) at be:e2:64:16:1e:ad on en0 ifscope [ethernet]
+? (192.168.1.41) at be:e2:64:16:1e:ad on en0 ifscope [ethernet]
 ? (192.168.1.255) at ff:ff:ff:ff:ff:ff on en0 ifscope [ethernet]
 ? (192.168.139.255) at ff:ff:ff:ff:ff:ff on bridge100 ifscope [bridge]
 ? (224.0.0.251) at 1:0:5e:0:0:fb on en0 ifscope permanent [ethernet]
 """
-ARP_SPOOF = ARP_CLEAN.replace("192.168.1.28) at 00:00:5e:00:53:05", "192.168.1.28) at 00:00:5e:00:53:04")
+ARP_SPOOF = ARP_CLEAN.replace("192.168.1.28) at 60:22:32:2c:b0:51", "192.168.1.28) at c4:ad:34:25:b2:a0")
 IPCONFIG = """<dictionary> {
   BSSID : <redacted>
   ConnectionID : 46
@@ -384,14 +384,14 @@ class Lan(unittest.TestCase):
         self.assertTrue(e[2]["incomplete"])
         self.assertEqual(e[-1]["mac"], "01:00:5e:00:00:fb")
         a = nd.analyze_arp(e, "192.168.1.1", "en0")
-        self.assertEqual(a["gateway_mac"], "00:00:5e:00:53:04")
+        self.assertEqual(a["gateway_mac"], "c4:ad:34:25:b2:a0")
         self.assertEqual(a["gateway_shared_with"], [])
-        self.assertEqual(a["multi_ip_macs"], [{"mac": "02:00:00:00:00:06", "interface": "en0",
+        self.assertEqual(a["multi_ip_macs"], [{"mac": "be:e2:64:16:1e:ad", "interface": "en0",
                                                "ips": ["192.168.1.40", "192.168.1.41"]}])
         a = nd.analyze_arp(nd.parse_arp(ARP_SPOOF), "192.168.1.1", "en0")
         self.assertEqual(a["gateway_shared_with"], ["192.168.1.28"])
-        self.assertTrue(nd.mac_is_local("02:00:00:00:00:06"))
-        self.assertFalse(nd.mac_is_local("00:00:5e:00:53:04"))
+        self.assertTrue(nd.mac_is_local("be:e2:64:16:1e:ad"))
+        self.assertFalse(nd.mac_is_local("c4:ad:34:25:b2:a0"))
         self.assertEqual(nd.normalize_mac("0:1b:2:aa:b:c"), "00:1b:02:aa:0b:0c")
 
     def test_wifi(self):
@@ -434,7 +434,7 @@ class Lan(unittest.TestCase):
         lan = ctx.inventory["network_audit"]["lan"]
         self.assertEqual(set(lan), {"gateway", "wifi", "dhcp", "arp_entries", "arp_suspicious", "arp_multi_ip",
                                     "ipv6_routers"})
-        self.assertEqual(lan["gateway"], {"ip": "192.168.1.1", "mac": "00:00:5e:00:53:04", "interface": "en0",
+        self.assertEqual(lan["gateway"], {"ip": "192.168.1.1", "mac": "c4:ad:34:25:b2:a0", "interface": "en0",
                                           "mac_randomized": False})
         self.assertEqual(lan["wifi"]["security_level"], "wpa2")
         self.assertEqual(lan["wifi"]["source"], "ipconfig")

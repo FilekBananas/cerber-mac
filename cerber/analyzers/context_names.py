@@ -12,6 +12,7 @@ Shared logic: cerber.envscan.provenance.
 from __future__ import annotations
 
 import os
+import re
 import time
 
 from ..core import Analyzer, Confidence, Detection, ScanContext, ScanObject
@@ -20,6 +21,8 @@ from ..envscan.provenance import name_signals
 from ..filetype import EXECUTABLE_TYPES, SCRIPT_TYPES
 from . import register
 
+_EXTENSION_DIR = re.compile(r"/(?:Extensions/[a-p]{32}/|extensions/[^/]+\.xpi/|Extensions/[^/]+@[^/]+/|"
+                            r"Safari/Extensions/)")
 RUNNABLE_EXT = (".app", ".command", ".tool", ".pkg", ".mpkg", ".dmg", ".terminal", ".scpt", ".applescript",
                 ".workflow", ".jar", ".sh", ".py", ".exe", ".scr", ".bat", ".cmd", ".vbs", ".ps1")
 
@@ -52,12 +55,16 @@ class ContextNamesAnalyzer(Analyzer):
         if pi.has("hidden") and not (in_bundle or in_project):
             odd.append("hidden")
         main_exe = in_bundle and "/Contents/MacOS/" in path and path.count(".app/") == 1
-        untrusted = runnable and not trusted and bool(q or odd) and (not in_bundle or main_exe)
-        sigs = name_signals(base, "Heur:Context", "nazwa pliku", trusted=trusted or not runnable or in_bundle,
-                            untrusted=untrusted)
+        # browser extension files run inside the browser's sandbox, not as programs; the browser-extension
+        # analysis (permissions, origin) judges them. Bundlers name their chunks "elm-Ch65hlGH.js": not random
+        # malware names, and "downloaded, unsigned" is meaningless for every .js there
+        in_extension = bool(_EXTENSION_DIR.search(path))
+        untrusted = runnable and not trusted and bool(q or odd) and (not in_bundle or main_exe) and not in_extension
+        sigs = name_signals(base, "Heur:Context", "nazwa pliku",
+                            trusted=trusted or not runnable or in_bundle or in_extension, untrusted=untrusted)
         if not runnable:          # documents: only the deceit tricks (double extension, invisible chars) count
             sigs = [s for s in sigs if s.name.endswith(("DoubleExtension", "InvisibleChars", "Homoglyph"))]
-        if runnable and not trusted and q and (not in_bundle or main_exe):
+        if runnable and not trusted and q and (not in_bundle or main_exe) and not in_extension:
             agent = q.get("agent") if isinstance(q, dict) else None
             ts = q.get("time") if isinstance(q, dict) else None
             days = (time.time() - ts) / 86400 if isinstance(ts, (int, float)) else None

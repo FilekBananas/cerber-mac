@@ -33,6 +33,13 @@ CREATE TABLE IF NOT EXISTS source(name TEXT PRIMARY KEY, version TEXT, count INT
 """
 
 
+def _qpart(a: int, b: int) -> int:
+    """TLSH distance contributed by one quartile-ratio nibble (as in the reference implementation)."""
+    d = abs(a - b)
+    d = min(d, 16 - d)
+    return d if d <= 1 else (d - 1) * 12
+
+
 class HashDB:
     def __init__(self, path: str, readonly: bool = True):
         self.path = path
@@ -121,10 +128,36 @@ class HashDB:
         return self._con().execute("SELECT tlsh, name FROM tlsh WHERE lval BETWEEN ? AND ?",
                                    (lval - spread, lval + spread))
 
+    def tlsh_candidates_within(self, h: str, lval: int, spread: int, max_dist: int):
+        """tlsh_candidates without the rows that can never be within max_dist of h: the TLSH header alone
+        (length bucket + the two quartile ratios) is a lower bound of the distance, checked by SQLite."""
+        body = h[2:] if h.startswith("T1") else h
+        try:
+            qa, qb = int(body[4], 16), int(body[5], 16)
+        except (ValueError, IndexError):
+            return self.tlsh_candidates(lval, spread)
+        allowed = [f"{c1:X}{c2:X}" for c1 in range(16) for c2 in range(16)
+                   if _qpart(qa, c1) + _qpart(qb, c2) <= max_dist]
+        if len(allowed) == 256:
+            return self.tlsh_candidates(lval, spread)
+        marks = ",".join("?" * len(allowed))
+        return self._con().execute(f"SELECT tlsh, name FROM tlsh WHERE lval BETWEEN ? AND ? "
+                                   f"AND upper(substr(tlsh, CASE WHEN substr(tlsh, 1, 2) = 'T1' THEN 7 ELSE 5 END, 2))"
+                                   f" IN ({marks})",           # stored hashes come with and without the T1 prefix
+                                   (lval - spread, lval + spread, *allowed))
+
     def counts(self) -> dict[str, int]:
         con = self._con()
         out = {}
+        try:                                    # the updater runs ANALYZE: exact row counts without a full scan
+            for tbl, idx, st in con.execute("SELECT tbl, idx, stat FROM sqlite_stat1"):
+                if tbl == idx and tbl in ("file", "section", "fp", "tlsh"):
+                    out[tbl] = int(str(st).split()[0])
+        except (sqlite3.Error, ValueError, IndexError):
+            out = {}
         for t in ("file", "section", "fp", "tlsh"):
+            if t in out:
+                continue
             try:
                 out[t] = con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
             except sqlite3.Error:

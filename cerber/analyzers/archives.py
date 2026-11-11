@@ -44,7 +44,7 @@ from . import register
 
 ZIP_TYPES = {"zip", "jar", "apk", "crx_zip", "vsix", "ooxml", "odf", "whl", "crx"}
 STREAM_TYPES = {"gzip": "gzip", "bzip2": "bzip2", "xz": "xz", "zstd": "zstd", "lzma": "lzma", "lz4": "lz4",
-                "lzip": "lzip"}
+                "lzip": "lzip", "compress": "compress"}
 CLI_TYPES = {"rar": "rar", "7z": "7z", "cab": "cab", "iso": "iso", "wim": "wim", "vhd": "vhd", "vmdk": "vmdk",
              "qcow": "qcow", "chm": "chm"}
 SFX_SIGS = (b"PK\x03\x04", b"7z\xbc\xaf\x27\x1c", b"Rar!\x1a\x07", b"MSCF")

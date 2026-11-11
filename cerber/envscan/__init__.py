@@ -48,6 +48,8 @@ COLLECTORS: list[tuple[str, str, str]] = [
     # attacks in progress: remote shells, browser/keychain/wallet stores held open by a program that does not own
     # them (runs after "processes": reuses its process snapshot and provenance)
     ("live", "live", "collect_live"),
+    # the "normal behaviour" autoencoder of this Mac (only when it was learned: ./cerber.sh baseline learn)
+    ("baseline", "baseline", "collect_baseline"),
     ("hosts", "network", "collect_hosts"),
     ("dns", "network", "collect_dns_proxy"),
     ("network", "network", "collect_network"),
@@ -55,6 +57,8 @@ COLLECTORS: list[tuple[str, str, str]] = [
     ("kext", "system", "collect_extensions"),
     ("profiles", "system", "collect_profiles"),
     ("tcc", "system", "collect_tcc"),
+    # keyboard event taps (CGGetEventTapList, like ReiKey): which programs can see keystrokes
+    ("event_taps", "eventtaps", "collect_event_taps"),
     ("browser", "browser", "collect_browsers"),
     ("downloads", "files", "collect_downloads"),
     ("staging", "files", "collect_staging"),

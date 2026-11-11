@@ -586,9 +586,10 @@ class NetGuard:
     `watch_net_status`), notifications for alarms, the daily report; programs it raises an alarm about are
     put into `targets` for the file scan."""
 
-    def __init__(self, notifier: "Notifier", targets: queue.Queue):
+    def __init__(self, notifier: "Notifier", targets: queue.Queue, defender=None):
         self.notifier = notifier
         self.targets = targets
+        self.defender = defender
         self.stop_ev = threading.Event()
         self.lock = threading.Lock()
         self.inbox: str | None = None
@@ -694,6 +695,11 @@ class NetGuard:
                                      subtitle=item["title"], sound="Basso" if sev == "malicious" else "Submarine")
             if sev in ("malicious", "suspicious"):
                 self.last_write = 0.0            # alarms reach the report within a second
+        if self.defender is not None and sev == "malicious":
+            try:
+                self.defender.on_live_attack(item)
+            except Exception as exc:  # noqa: BLE001
+                _log(f"Aktywna obrona: błąd {exc!r}")
 
     def _on_status(self, ev: dict) -> None:
         st = clean_net_status(ev)
@@ -842,7 +848,9 @@ class Watcher:
         self.stop = False
         self.warned_missing = False
         self.net_targets: queue.Queue = queue.Queue()
-        self.net = NetGuard(self.notifier, self.net_targets) if getattr(a, "net", False) else None
+        from .defense import Defender
+        self.defender = Defender(self._on_defense, quarantine=auto_quarantine(a), kill=active_defense(a))
+        self.net = NetGuard(self.notifier, self.net_targets, self.defender) if getattr(a, "net", False) else None
 
     # --- spots
     def _spot_list(self) -> list[tuple[str, str]]:
@@ -1040,19 +1048,25 @@ class Watcher:
             rp = os.path.realpath(p)
             return any(rp == q or rp.startswith(q.rstrip("/") + "/") for q in roots)
 
-        if auto_quarantine(self.a):
-            from .quarantine import quarantine_file
+        if self.defender.enabled:
+            from .verdict import ml_decisive
             for res in data.get("results", []):
-                if res.get("verdict") == "MALICIOUS" and os.path.isfile(res["path"]) and inside(res["path"]):
+                if res.get("verdict") == "MALICIOUS" and not ml_decisive(res) and os.path.isfile(res["path"]) \
+                        and not os.path.islink(res["path"]) and inside(res["path"]):
                     try:
-                        res["quarantined"] = quarantine_file(res["path"], res)
-                    except OSError as exc:
-                        res["quarantine_error"] = str(exc.strerror or exc)
+                        d = self.defender.on_malicious_file(res["path"], res)
+                    except Exception as exc:  # noqa: BLE001
+                        _log(f"Aktywna obrona: błąd {exc!r}")
+                        continue
+                    res["quarantined"] = d.get("quarantined")
+                    res["quarantine_error"] = d.get("quarantine_error") or d.get("skipped")
+                    res["stopped"] = [s["pid"] for s in d.get("stopped") or []]
         q = {res["path"]: res for res in data.get("results", [])}
         for f in r.get("flagged") or []:
             src = q.get(f["path"], {})
             f["quarantined"] = src.get("quarantined")
             f["quarantine_error"] = src.get("quarantine_error")
+            f["stopped"] = src.get("stopped") or []
         try:
             os.makedirs(config.REPORTS, exist_ok=True)
             stem = os.path.join(config.REPORTS, f"watch-{time.strftime('%Y%m%d-%H%M%S')}-{job.id}")
@@ -1061,6 +1075,17 @@ class Watcher:
             r["report"] = write_html(data, stem + ".html", None)
         except Exception as exc:  # noqa: BLE001
             _log(f"Nie udało się zapisać raportu: {exc!r}")
+
+    def _on_defense(self, ev: dict) -> None:
+        """Every action (or refusal) of the active defense: log, Cerber.app feed, notification."""
+        _log(f"Aktywna obrona [{ev.get('action')}] {ev.get('title')} · {ev.get('detail')}")
+        app_event(ev)
+        if ev.get("action") in ("quarantined", "stopped"):
+            self.notifier.notify(f"Cerber 🛡️ {ev.get('title')}", str(ev.get("detail") or ""),
+                                 subtitle="aktywna obrona", sound="Basso")
+        elif ev.get("action") == "failed":
+            self.notifier.notify(f"Cerber ⛔ {ev.get('title')}", str(ev.get("detail") or ""),
+                                 subtitle="aktywna obrona – sprawdź ręcznie", sound="Basso")
 
     def _report(self, job: Job, r: dict) -> None:
         self._persist(job, r)
@@ -1101,9 +1126,11 @@ class Watcher:
             msg = f"{job.note}\n{msg}"
         if v == "MALICIOUS":
             self.notifier.notify(f"Cerber ⛔ {VERDICT_PL[v]}", msg, subtitle=f"{kind}: {name}", sound="Basso")
+            stopped = sum(len(f.get("stopped") or []) for f in flagged)
             body = (f"{msg}\n\nMiejsce: {job.path}\n"
-                    + ("Plik przeniesiono do kwarantanny (./cerber.sh quarantine list).\n" if q else
-                       "Plik NIE został przeniesiony – usuń go ręcznie albo użyj ./cerber.sh scan --quarantine.\n")
+                    + ("Plik przeniesiono do kwarantanny – można go przywrócić w Cerberze.\n" if q else
+                       "Plik NIE został przeniesiony – użyj przycisku „Do kwarantanny” w Cerberze.\n")
+                    + (f"Zatrzymano uruchomione z niego procesy: {stopped}.\n" if stopped else "")
                     + "Nie otwieraj go ani nie instaluj.")
             self.notifier.alert(f"Cerber: wykryto złośliwe oprogramowanie", body, r.get("report"))
         else:
@@ -1114,10 +1141,12 @@ class Watcher:
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "stop", True))
         signal.signal(signal.SIGINT, lambda *_: setattr(self, "stop", True))
         _log(f"Cerber watch start (pid {os.getpid()}) · kwarantanna złośliwych: "
-             f"{'włączona' if auto_quarantine(self.a) else 'wyłączona'} · AI: {'tak' if self.a.ai else 'nie'} · "
+             f"{'włączona' if auto_quarantine(self.a) else 'wyłączona'} · aktywna obrona: "
+             f"{'włączona' if active_defense(self.a) else 'wyłączona'} · AI: {'tak' if self.a.ai else 'nie'} · "
              f"nadzór sieci: {'tak' if self.net else 'nie'}")
         self.refresh_spots()
         app_event({"ev": "watch_ready", "level": self.a.level, "quarantine": auto_quarantine(self.a),
+                   "defend": active_defense(self.a),
                    "net": self.net is not None, "net_report": self.net.report if self.net else None,
                    "spots": [{"kind": s.kind, "kind_pl": KIND_PL.get(s.kind, s.kind), "path": s.path,
                               "ok": s.fd >= 0, "error": s.error or None} for s in self.spots]})
@@ -1194,6 +1223,8 @@ def install(a) -> int:
     args = [py, "-m", "cerber", "watch", "run"]
     if auto_quarantine(a):
         args.append("--quarantine")
+    if active_defense(a):
+        args.append("--defend")
     if a.ai:
         args.append("--ai")
     if getattr(a, "net", False):
@@ -1273,8 +1304,16 @@ def status(_a) -> int:
 
 
 def auto_quarantine(a) -> bool:
-    """Off unless asked for: the user decides what goes to quarantine (owner's rule, 2026-10-09)."""
-    return bool(getattr(a, "quarantine", False)) and not getattr(a, "no_quarantine", False)
+    """Off unless asked for: the user decides what goes to quarantine (owner's rule, 2026-10-09).
+    Active defense (--defend) includes it."""
+    if getattr(a, "no_quarantine", False):
+        return False
+    return bool(getattr(a, "quarantine", False)) or active_defense(a)
+
+
+def active_defense(a) -> bool:
+    """--defend: quarantine + stop the processes of certain attacks (cerber.defense, owner's decision 2026-11-03)."""
+    return bool(getattr(a, "defend", False)) and not getattr(a, "no_quarantine", False)
 
 
 def add_parser(sub) -> None:
@@ -1284,6 +1323,9 @@ def add_parser(sub) -> None:
     p.add_argument("--quarantine", action="store_true",
                    help="złośliwe pliki od razu przenoś do kwarantanny (domyślnie tylko zgłaszaj)")
     p.add_argument("--no-quarantine", action="store_true", help=argparse.SUPPRESS)   # the old default, kept
+    p.add_argument("--defend", action="store_true",
+                   help="aktywna obrona: przy pewnym ataku kwarantanna pliku i zatrzymanie jego procesów "
+                        "(zrywa ich połączenia); nigdy nie rusza systemu, aplikacji Apple ani Cerbera")
     p.add_argument("--ai", action="store_true", help="analiza szarej strefy lokalnym modelem AI")
     p.add_argument("--net", action="store_true",
                    help="nadzór sieci i zdalnego dostępu: połączenia, otwarte porty, logowania zdalne, programy do "

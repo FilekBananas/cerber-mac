@@ -133,7 +133,7 @@ class FuzzyEngine(Engine):
             return
         best = (10**9, None, None)
         n = 0
-        for cand, name in self.db.tlsh_candidates(lv, 1):
+        for cand, name in self.db.tlsh_candidates_within(h, lv, 1, self.weak):
             d = tlsh.diff(h, cand)
             if d < best[0]:
                 best = (d, name, cand)
